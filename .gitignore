@@ -1,0 +1,42 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+
+# Compilación
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+ipch/
+
+# Archivos intermedios
+*.pdb
+*.ilk
+*.idb
+*.tlog
+*.lastbuildstate
+*.log
+*.pch
+*.ipch
+
+# Temporales
+*.tmp
+*.bak
+*.cache
+Thumbs.db
+Desktop.ini
+
+# Ejecutables compilados
+*.exe
+
+# Registros de shaders
+shader-error.txt
