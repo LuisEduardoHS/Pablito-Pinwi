@@ -50,6 +50,14 @@ public:
 		Yaw += yaw;
 		Pitch += pitch;
 
+		// Evita cruzar la vertical e invertir la vista. Se limita el angulo
+		// acumulado para responder de inmediato al cambiar de direccion.
+		const float pitchLimit = D3DXToRadian(85.0f);
+		if (Pitch > pitchLimit)
+			Pitch = pitchLimit;
+		else if (Pitch < -pitchLimit)
+			Pitch = -pitchLimit;
+
 		D3DXMatrixRotationYawPitchRoll(&camRotationMatrix, Yaw, Pitch, 0);
 		D3DXVec3TransformCoord(&Target, &DefaultForward, &camRotationMatrix);
 		D3DXVec3Normalize(&Target, &Target);

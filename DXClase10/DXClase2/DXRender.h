@@ -1,6 +1,10 @@
 #ifndef _DXRender_
 #define _DXRender_
 
+#include <Xinput.h>
+#include <chrono>
+#pragma comment(lib, "Xinput9_1_0.lib")
+
 #include "Constants.h"
 
 #include "Camara.h"
@@ -43,6 +47,12 @@ private:
 
 	float rotPerFrame;
 	float sphereSpeed;
+	bool isJumping;
+	float jumpVelocity;
+	float jumpOffset;
+	bool jumpWasDown;
+	float frameSeconds;
+	std::chrono::steady_clock::time_point lastFrameTime;
 	D3DXVECTOR2 BoundingSphereTranslation;
 	D3DXVECTOR2 DummyBoundyEvents;
 	D3DXVECTOR2 LastBoundingPosition;
@@ -51,6 +61,12 @@ public:
 	DXRender()
 	{
 		rotPerFrame = 0.0f;
+		isJumping = false;
+		jumpVelocity = 0.0f;
+		jumpOffset = 0.0f;
+		jumpWasDown = false;
+		frameSeconds = 0.0f;
+		lastFrameTime = std::chrono::steady_clock::now();
 	}
 
 	bool InitDevice(HWND hwnd, int Width, int Height)
@@ -178,9 +194,9 @@ public:
 
 	void DetectInput()
 	{
-		DIMOUSESTATE mouseCurrState;
+		DIMOUSESTATE mouseCurrState = {};
 
-		BYTE keyboardState[256];
+		BYTE keyboardState[256] = {};
 
 		DIKeyboard->Acquire();
 		DIMouse->Acquire();
@@ -189,7 +205,23 @@ public:
 
 		DIKeyboard->GetDeviceState(sizeof(keyboardState),(LPVOID)&keyboardState);
 
-		float speed = 0.05f;
+		XINPUT_STATE gamepadState = {};
+		const bool gamepadConnected = XInputGetState(0, &gamepadState) == ERROR_SUCCESS;
+		const WORD buttons = gamepadConnected ? gamepadState.Gamepad.wButtons : 0;
+
+		// Velocidades en unidades por segundo. Correr mientras se sostiene Shift o L3.
+		const bool running = keyboardState[DIK_LSHIFT] || keyboardState[DIK_RSHIFT]
+			|| (buttons & XINPUT_GAMEPAD_LEFT_THUMB);
+		const float speed = (running ? 16.0f : 8.0f) * frameSeconds;
+
+		// Un salto por pulsacion: Espacio o boton A del mando.
+		const bool jumpDown = keyboardState[DIK_SPACE] || (buttons & XINPUT_GAMEPAD_A);
+		if (jumpDown && !jumpWasDown && !isJumping)
+		{
+			isJumping = true;
+			jumpVelocity = 5.0f;
+		}
+		jumpWasDown = jumpDown;
 
 		float moveLeftRight = 0;
 		float moveBackForward = 0;
@@ -232,12 +264,34 @@ public:
 			DummyBoundyEvents.y = -.01f;
 		}
 
-		if((mouseCurrState.lX != mouseLastState.lX) || (mouseCurrState.lY != mouseLastState.lY))
+		// Mando 1: stick izquierdo para moverse, derecho para mirar.
+		if (gamepadConnected)
 		{
-			float smoothness = 0.001f;
-			camYaw = mouseCurrState.lX * smoothness;
+			const short deadzone = 8000;
+			const float cameraSensitivity = 1.8f * frameSeconds;
+			const float thumbLX = (float)gamepadState.Gamepad.sThumbLX;
+			const float thumbLY = (float)gamepadState.Gamepad.sThumbLY;
+			const float thumbRX = (float)gamepadState.Gamepad.sThumbRX;
+			const float thumbRY = (float)gamepadState.Gamepad.sThumbRY;
 
-			camPitch = mouseCurrState.lY * smoothness;
+			// Los ejes van de -32768 a 32767: normalizar cada signo por separado.
+			if (thumbLX > deadzone || thumbLX < -deadzone)
+				moveLeftRight += (thumbLX / (thumbLX < 0 ? 32768.0f : 32767.0f)) * speed;
+			if (thumbLY > deadzone || thumbLY < -deadzone)
+				moveBackForward += (thumbLY / (thumbLY < 0 ? 32768.0f : 32767.0f)) * speed;
+			if (thumbRX > deadzone || thumbRX < -deadzone)
+				camYaw += (thumbRX / (thumbRX < 0 ? 32768.0f : 32767.0f)) * cameraSensitivity;
+			if (thumbRY > deadzone || thumbRY < -deadzone)
+				camPitch -= (thumbRY / (thumbRY < 0 ? 32768.0f : 32767.0f)) * cameraSensitivity;
+		}
+
+		// DirectInput entrega desplazamientos relativos en cada lectura.
+		// Sumarlos permite usar el mouse y el mando al mismo tiempo.
+		{
+			float smoothness = 0.0005f;
+			camYaw += mouseCurrState.lX * smoothness;
+
+			camPitch += mouseCurrState.lY * smoothness;
 
 			mouseLastState = mouseCurrState;
 		}
@@ -291,7 +345,13 @@ public:
 
 	void UpdateScene()
 	{
-		
+		const auto now = std::chrono::steady_clock::now();
+		frameSeconds = std::chrono::duration<float>(now - lastFrameTime).count();
+		lastFrameTime = now;
+		// Evita avances bruscos al pausar o arrastrar la ventana.
+		if (frameSeconds > 0.05f)
+			frameSeconds = 0.05f;
+
 		LastBoundingPosition = BoundingSphereTranslation;
 		BoundingSphereTranslation += DummyBoundyEvents;
 
@@ -331,7 +391,23 @@ public:
 		D3DXMatrixIdentity(&terrMat);
 		terreno->UpdateScene(terrMat);
 
-		camara->Position.y = terreno->getTerrainCollision(camara->getXZ()) +3;
+		float groundHeight = terreno->getTerrainCollision(camara->getXZ()) + 3.0f;
+
+		if (isJumping)
+		{
+			const float gravity = 12.0f; // Unidades por segundo al cuadrado.
+			jumpOffset += jumpVelocity * frameSeconds - 0.5f * gravity * frameSeconds * frameSeconds;
+			jumpVelocity -= gravity * frameSeconds;
+
+			if (jumpOffset <= 0.0f)
+			{
+				jumpOffset = 0.0f;
+				jumpVelocity = 0.0f;
+				isJumping = false;
+			}
+		}
+
+		camara->Position.y = groundHeight + jumpOffset;
 
 		BoundingSphere1->UpdateScene(Bounding1 * MatAcomodo * BoundinMatTranslation);
 		BoundingSphere2->UpdateScene(Bounding2 * MatAcomodo);
