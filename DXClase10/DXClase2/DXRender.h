@@ -30,17 +30,38 @@ private:
 	D3DXMATRIX Projection;
 
 
-	MPrimitives *cubo;
-	MPrimitives *esfera;
-	MPrimitives *toroide;
-	MPrimitives *cono;
-	MPrimitives *cilindro;
-	MPrimitives *billboard;
-	MPrimitives *skydomo;
-	MPrimitives *terreno;
-	MPrimitives *Bitmap;
-	MPrimitives *BoundingSphere1;
-	MPrimitives *BoundingSphere2;
+	MPrimitives* cubo;
+	MPrimitives* esfera;
+	MPrimitives* toroide;
+	MPrimitives* cono;
+	MPrimitives* cilindro;
+	MPrimitives* billboard;
+	MPrimitives* skydomo;
+	MPrimitives* terreno;
+	MPrimitives* Bitmap;
+	MPrimitives* BoundingSphere1;
+	MPrimitives* BoundingSphere2;
+
+	MPrimitives* pablito;
+	MPrimitives* casa;
+	MPrimitives* pocion;
+	MPrimitives* mesa;
+	MPrimitives* tree;
+	MPrimitives* fence;
+	MPrimitives* furnace;
+	MPrimitives* pipe;
+	MPrimitives* corner_pipe;
+
+	// Escala individual de cada modelo (1.0f = tamaño original)
+	float pablitoScale;
+	float casaScale;
+	float pocionScale;
+	float mesaScale;
+	float treeScale;
+	float fenceScale;
+	float furnaceScale;
+	float pipeScale;
+	float cornerPipeScale;
 
 	Camara *camara;
 	Camara *skyCamara;
@@ -67,6 +88,17 @@ public:
 		jumpWasDown = false;
 		frameSeconds = 0.0f;
 		lastFrameTime = std::chrono::steady_clock::now();
+
+		// Ajusta estos valores para escalar cada modelo individualmente
+		pablitoScale = 1.0f;
+		casaScale = 1.0f;
+		pocionScale = 1.0f;
+		mesaScale = 1.0f;
+		treeScale = 1.0f;
+		fenceScale = 1.0f;
+		furnaceScale = 1.0f;
+		pipeScale = 1.0f;
+		cornerPipeScale = 1.0f;
 	}
 
 	bool InitDevice(HWND hwnd, int Width, int Height)
@@ -156,8 +188,18 @@ public:
 		cilindro = new MPrimitives(d3d11Device, d3d11DevCon, 16, 1.0f, 1.0f, 2.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		cono = new MPrimitives(d3d11Device, d3d11DevCon, 16, 0.0f, 1.0f, 2.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		billboard = new MPrimitives(d3d11Device, d3d11DevCon, 2.0f, 2.0f, L"Texturas/ave.png");
+
+		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi.txt", L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		casa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/casa.txt", L"Texturas/casa.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		pocion = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pocion.txt", L"Texturas/pocion.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		mesa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/mesa.txt", L"Texturas/mesa.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		tree = new MPrimitives(d3d11Device, d3d11DevCon, "Models/tree.txt", L"Texturas/tree.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		fence = new MPrimitives(d3d11Device, d3d11DevCon, "Models/fence.txt", L"Texturas/fence.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		furnace = new MPrimitives(d3d11Device, d3d11DevCon, "Models/furnace.txt", L"Texturas/furnace.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		pipe = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pipe.txt", L"Texturas/pipe.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		corner_pipe = new MPrimitives(d3d11Device, d3d11DevCon, "Models/corner_pipe.txt", L"Texturas/corner_pipe.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		
-		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/sky.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/skybox.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		terreno = new MPrimitives(d3d11Device, d3d11DevCon, 100.0f, L"Texturas/arena.jpg", L"Texturas/grass.jpg", "Texturas/heightmap01.bmp", ShaderMultitextura);
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
@@ -378,6 +420,51 @@ public:
 		toroide->UpdateScene(rotMatY * eastMat* MatAcomodo);
 		cilindro->UpdateScene(rotMatY * eastMat * northMat* MatAcomodo);
 		cono->UpdateScene(rotMatY * westMat* MatAcomodo);
+
+		// Fila de modelos alejada del spawn (camara inicia en ~50, 2, 40).
+		// Cada modelo tiene su propia escala: escala * traslacion.
+		const float filaZ = 70.0f;
+		const float filaY = 3.0f;
+		const float filaInicioX = 30.0f;
+		const float filaSeparacion = 10.0f;
+
+		D3DXMATRIX escMat, posMat;
+
+		D3DXMatrixScaling(&escMat, pablitoScale, pablitoScale, pablitoScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 0, filaY, filaZ);
+		pablito->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, casaScale, casaScale, casaScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 1, filaY, filaZ);
+		casa->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, pocionScale, pocionScale, pocionScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 2, filaY, filaZ);
+		pocion->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, mesaScale, mesaScale, mesaScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 3, filaY, filaZ);
+		mesa->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, treeScale, treeScale, treeScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 4, filaY, filaZ);
+		tree->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, fenceScale, fenceScale, fenceScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 5, filaY, filaZ);
+		fence->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, furnaceScale, furnaceScale, furnaceScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 6, filaY, filaZ);
+		furnace->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, pipeScale, pipeScale, pipeScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 7, filaY, filaZ);
+		pipe->UpdateScene(escMat * posMat);
+
+		D3DXMatrixScaling(&escMat, cornerPipeScale, cornerPipeScale, cornerPipeScale);
+		D3DXMatrixTranslation(&posMat, filaInicioX + filaSeparacion * 8, filaY, filaZ);
+		corner_pipe->UpdateScene(escMat * posMat);
 		
 		billboard->UpdateScene(westMat * northMat* MatAcomodo);
 		
@@ -442,7 +529,15 @@ public:
 		cono->DrawScene(camara);
 		billboard->DrawScene(camara);
 
-		
+		pablito->DrawScene(camara);
+		casa->DrawScene(camara);
+		pocion->DrawScene(camara);
+		mesa->DrawScene(camara);
+		tree->DrawScene(camara);
+		fence->DrawScene(camara);
+		furnace->DrawScene(camara);
+		pipe->DrawScene(camara);
+		corner_pipe->DrawScene(camara);
 
 		terreno->DrawScene(camara);
 		skydomo->DrawScene(skyCamara);
