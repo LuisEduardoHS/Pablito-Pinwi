@@ -40,3 +40,6 @@ Desktop.ini
 
 # Registros de shaders
 shader-error.txt
+# Python tooling
+__pycache__/
+*.pyc

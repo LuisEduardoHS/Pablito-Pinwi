@@ -23,29 +23,28 @@ struct VS_OUTPUT
 	float maxHeight : HEIGHT;
 };
 
-Texture2D ObjTexture;
-Texture2D ObjTexture2;
-Texture2D ObjTexture3;
+Texture2D ObjTexture : register(t0);
+Texture2D ObjTexture2 : register(t1);
+Texture2D ObjTexture3 : register(t2);
 SamplerState ObjSamplerState;
 
-float4 PS( VS_OUTPUT input ) : SV_Target
+float4 PS(VS_OUTPUT input) : SV_Target
 {
-	input.normal = normalize(input.normal);
+    float3 grassColor = ObjTexture2.Sample(ObjSamplerState, input.TexCoord).rgb;
+    float3 sandColor = ObjTexture.Sample(ObjSamplerState, input.TexCoord).rgb;
+    float3 rockColor = ObjTexture3.Sample(ObjSamplerState, input.TexCoord).rgb;
 
-	float4 textureColor = ObjTexture.Sample( ObjSamplerState, input.TexCoord );
-	float4 textureColor2 = ObjTexture2.Sample( ObjSamplerState, input.TexCoord );
-	float4 textureColor3 = ObjTexture3.Sample( ObjSamplerState, input.TexCoord );
+    float height = saturate(input.vectPos.y / max(input.maxHeight, 0.0001f));
+    // Fractions of the mesh's peak height. Larger intervals soften the changes.
+    const float sandStart = 0.45f;
+    const float sandEnd = 0.80f;
+    const float rockStart = 0.80f;
+    const float rockEnd = 1.00f;
+    float sandBlend = smoothstep(sandStart, sandEnd, height);
+    float rockBlend = smoothstep(rockStart, rockEnd, height);
 
-	float length = input.vectPos.y/input.maxHeight;
-	textureColor *= length;
-	textureColor2 *= (1-length);
-	textureColor3 *= (0.33+(length/3));
-
-	textureColor += textureColor2 + textureColor3;
-
-	float3 finalColor = textureColor * light.ambient;
-	finalColor += saturate(dot(light.direction, input.normal) * light.diffuse * textureColor);
-
-
-	return float4(finalColor, 1);
+    // Convex blends preserve the source colors without additive brightening.
+    float3 terrainColor = lerp(grassColor, sandColor, sandBlend);
+    terrainColor = lerp(terrainColor, rockColor, rockBlend);
+    return float4(terrainColor, 1.0f);
 }

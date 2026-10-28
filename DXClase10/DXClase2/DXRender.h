@@ -38,7 +38,10 @@ private:
 	MPrimitives *billboard;
 	MPrimitives *skydomo;
 	MPrimitives *terreno;
-	MPrimitives *Bitmap;
+	TerrainSettings terrainSettings;
+	MPrimitives *casa;
+	MPrimitives *mesa;
+	MPrimitives *pocion;
 	MPrimitives *BoundingSphere1;
 	MPrimitives *BoundingSphere2;
 
@@ -60,6 +63,13 @@ private:
 public:
 	DXRender()
 	{
+		// Pablito Pinwi: edit these values before rebuilding.
+		terrainSettings.width = 255.0f;
+		terrainSettings.depth = 255.0f;
+		terrainSettings.maxHeight = 85.0f; // White pixel height in world units.
+		terrainSettings.verticalScale = 1.0f;
+		terrainSettings.horizontalScale = 3.0f;
+		terrainSettings.position = D3DXVECTOR3(0, 0, 0);
 		rotPerFrame = 0.0f;
 		isJumping = false;
 		jumpVelocity = 0.0f;
@@ -158,7 +168,18 @@ public:
 		billboard = new MPrimitives(d3d11Device, d3d11DevCon, 2.0f, 2.0f, L"Texturas/ave.png");
 		
 		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/sky.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
-		terreno = new MPrimitives(d3d11Device, d3d11DevCon, 100.0f, L"Texturas/arena.jpg", L"Texturas/grass.jpg", "Texturas/heightmap01.bmp", ShaderMultitextura);
+		terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/dirt_diff.png", L"Texturas/Meshpart1_diff.png", "Texturas/PablitoPinwi_Heightmap_256.bmp", ShaderMultitextura);
+
+		if (!terreno->IsTerrainLoaded()) return false;
+
+		// Three imported OBJ meshes, converted to the template's text format.
+		casa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/casa_pablo.txt",
+			L"Models/PablitoPinwi/casa.png", L"", ShaderDiffuse);
+		mesa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Mesa.txt",
+			L"Models/PablitoPinwi/Mesa.png", L"", ShaderDiffuse);
+		pocion = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Pocion.txt",
+			L"Models/PablitoPinwi/Poci\u00f3n.png", L"", ShaderDiffuse);
+		if (!casa->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		BoundingSphere2 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
@@ -274,7 +295,6 @@ public:
 			const float thumbRX = (float)gamepadState.Gamepad.sThumbRX;
 			const float thumbRY = (float)gamepadState.Gamepad.sThumbRY;
 
-			// Los ejes van de -32768 a 32767: normalizar cada signo por separado.
 			if (thumbLX > deadzone || thumbLX < -deadzone)
 				moveLeftRight += (thumbLX / (thumbLX < 0 ? 32768.0f : 32767.0f)) * speed;
 			if (thumbLY > deadzone || thumbLY < -deadzone)
@@ -302,6 +322,12 @@ public:
 
 	void ReleaseObjects()
 	{
+		casa->ReleaseModelResources();
+		mesa->ReleaseModelResources();
+		pocion->ReleaseModelResources();
+		delete casa;
+		delete mesa;
+		delete pocion;
 		//Release the COM Objects we created
 		SwapChain->Release();
 		d3d11Device->Release();
@@ -332,15 +358,36 @@ public:
 		d3d11DevCon->RSSetViewports(1, &viewport);
 
 		//Create the camera
-		D3DXVECTOR3 Position = D3DXVECTOR3(50, 2.0f, 40.0f);
+		// Start in the flatter village area, facing the imported models.
+		D3DXVECTOR3 Position(384.0f, terreno->getTerrainCollision(D3DXVECTOR2(384.0f, 380.0f)) + 3.0f, 380.0f);
 		D3DXVECTOR3 Target = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
 		camara = new Camara(Position,Target,Up, Width, Height);
 		skyCamara = new Camara(Position,Target,Up, Width, Height);
-		//esta es la gui
-		Bitmap = new MPrimitives(d3d11Device, d3d11DevCon, 1, 1, L"Texturas/Health.png", camara);
 
 		return true;
+	}
+
+	// Edit X/Z, scale and yaw here to arrange the imported models.
+	void UpdateImportedModels()
+	{
+		const float modelScale = 4.0f;
+		const D3DXVECTOR2 houseXZ(384.0f, 435.0f);
+		const D3DXVECTOR2 tableXZ(384.0f, 403.0f);
+		const float houseYaw = 65.0f; // Degrees.
+		const float houseY = terreno->getTerrainCollision(houseXZ) - 0.15f;
+		const float tableY = terreno->getTerrainCollision(tableXZ);
+		D3DXMATRIX scaling, rotation, translation;
+		D3DXMatrixScaling(&scaling, modelScale, modelScale, modelScale);
+		D3DXMatrixRotationY(&rotation, D3DXToRadian(houseYaw));
+		D3DXMatrixTranslation(&translation, houseXZ.x, houseY, houseXZ.y);
+		casa->UpdateScene(scaling * rotation * translation);
+		D3DXMatrixTranslation(&translation, tableXZ.x, tableY, tableXZ.y);
+		mesa->UpdateScene(scaling * translation);
+		// Centered on the tabletop, using its measured height instead of a fixed Y.
+		D3DXMatrixTranslation(&translation, tableXZ.x,
+			tableY + mesa->GetModelHeight() * modelScale, tableXZ.y);
+		pocion->UpdateScene(scaling * translation);
 	}
 
 	void UpdateScene()
@@ -387,9 +434,10 @@ public:
 		skydomo->UpdateScene(skyRotMat);
 
 
-		//D3DXMatrixTranslation(&terrMat, -50, 0, -50);
-		D3DXMatrixIdentity(&terrMat);
+		D3DXMatrixTranslation(&terrMat, terrainSettings.position.x,
+			terrainSettings.position.y, terrainSettings.position.z);
 		terreno->UpdateScene(terrMat);
+		UpdateImportedModels();
 
 		float groundHeight = terreno->getTerrainCollision(camara->getXZ()) + 3.0f;
 
@@ -444,13 +492,16 @@ public:
 
 		
 
+		casa->DrawScene(camara);
+		mesa->DrawScene(camara);
+		pocion->DrawScene(camara);
+
 		terreno->DrawScene(camara);
 		skydomo->DrawScene(skyCamara);
 
 		BoundingSphere1->DrawScene(camara);
 		BoundingSphere2->DrawScene(camara);
 
-		Bitmap->DrawBitmap(camara);
 
 
 		//Present the backbuffer to the screen

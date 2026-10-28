@@ -34,7 +34,7 @@ public:
 		//Set the Projection matrix
 		D3DXMatrixPerspectiveFovLH(&Projection, 
 			D3DXToRadian(45), (float)Width / Height, 
-			1.0f, 1000.0f);
+			1.0f, 1500.0f);
 
 		DefaultForward = D3DXVECTOR3(0.0f,0.0f,1.0f);
 		DefaultRight = D3DXVECTOR3(1.0f,0.0f,0.0f);

@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Modelos Pablito Pinwi">
+      <UniqueIdentifier>{91930612-0141-4E27-9AA6-15EB394B9A72}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -57,5 +60,46 @@
     <Text Include="pixelShaderSpecular.ps">
       <Filter>Resource Files</Filter>
     </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Models\PablitoPinwi\casa.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\casa_pablo.mtl">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\casa_pablo.obj">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\casa_pablo.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Mesa.mtl">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Mesa.obj">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Mesa.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Mesa.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Pocion.mtl">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Pocion.obj">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Pocion.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\PablitoPinwi\Poción.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Tools\convert_obj.py">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
   </ItemGroup>
 </Project>

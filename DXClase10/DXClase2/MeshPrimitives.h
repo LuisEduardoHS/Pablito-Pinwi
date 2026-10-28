@@ -1,6 +1,23 @@
 #ifndef _MeshPrimitives_
 #define _MeshPrimitives_
 
+#include <vector>
+#include <cmath>
+#include <stdexcept>
+#include <string>
+
+struct TerrainSettings
+{
+	float width, depth;       // Physical extent, independent of image resolution.
+	float maxHeight;          // Height of white (255), before verticalScale.
+	float verticalScale;
+	float horizontalScale;
+	D3DXVECTOR3 position;
+
+	TerrainSettings() : width(255.0f), depth(255.0f), maxHeight(17.0f),
+		verticalScale(1.0f), horizontalScale(1.0f), position(0, 0, 0) {}
+};
+
 class MPrimitives {
 private:
 	ID3D11Buffer* VertexBuffer;
@@ -72,7 +89,11 @@ private:
 		D3DXVECTOR3 biTangent;
 	} ;
 
-	SimpleVertex* heightMapDummy;
+	std::vector<SimpleVertex> terrainVertices;
+	TerrainSettings terrainSettings;
+	bool terrainLoaded = false;
+	bool modelLoaded = false;
+	float modelHeight = 0.0f;
 
 	
 
@@ -144,29 +165,68 @@ public:
 		createCilinder();
 	}
 
-	MPrimitives(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, int tWidth, LPCWSTR texturePath, LPCWSTR textureNormalPath, char* heightMapFilename, int ShaderType)
+	MPrimitives(ID3D11Device* device, ID3D11DeviceContext* context,
+		const TerrainSettings& settings, LPCWSTR texturePath, LPCWSTR textureNormalPath,
+		const char* heightMapFilename, int ShaderType)
 	{
-		D3DXMatrixIdentity(&World);
-
-		this->d3d11Device = d3d11Device;
-		this->d3d11DevCon = d3d11DevCon;
-
-		this->Size = Size;
-		TEXTURE_REPEAT = 8;
-
-		InitScene(d3d11Device, d3d11DevCon, texturePath, textureNormalPath, ShaderType);
-		LoadHeightMap(heightMapFilename);
+		terrainSettings = settings;
+		faceToCam = false;
+		VertexBuffer = NULL;
+		IndexBuffer = NULL;
+		numVertex = numIndex = 0;
+		TEXTURE_REPEAT = 64; // More repetitions make terrain texture details smaller.
+		InitScene(device, context, texturePath, textureNormalPath, ShaderType);
+		try
+		{
+			LoadHeightMap(heightMapFilename);
+			terrainLoaded = true;
+		}
+		catch (const std::exception& error)
+		{
+			terrainVertices.clear();
+			numVertex = numIndex = 0;
+			MessageBoxA(NULL, error.what(), "Error al cargar el terreno", MB_OK | MB_ICONERROR);
+		}
 	}
 
-	MPrimitives(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, char* modelObjectPath, LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType)
+	bool IsTerrainLoaded() const { return terrainLoaded; }
+
+	// Imported meshes use the converted Vertex Count/Data format of the template.
+	MPrimitives(ID3D11Device* device, ID3D11DeviceContext* context, const char* modelObjectPath,
+		LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType)
 	{
-		D3DXMatrixIdentity(&World);
+		faceToCam = false;
+		VertexBuffer = NULL;
+		IndexBuffer = NULL;
+		Texture = NormalTexture = Texture2 = NULL;
+		numVertex = numIndex = 0;
+		consBuff.MaxH = 1.0f;
+		InitScene(device, context, texturePath, textureNormalPath, ShaderType);
+		modelLoaded = LoadModel(modelObjectPath) && Texture != NULL;
+		if (!modelLoaded)
+			MessageBoxA(NULL, modelObjectPath, "No se pudo cargar el modelo o su textura", MB_OK | MB_ICONERROR);
+	}
 
-		this->d3d11Device = d3d11Device;
-		this->d3d11DevCon = d3d11DevCon;
+	bool IsModelLoaded() const { return modelLoaded; }
+	float GetModelHeight() const { return modelHeight; }
 
-		InitScene(d3d11Device, d3d11DevCon, texturePath, textureNormalPath, ShaderType);
-		LoadModel(modelObjectPath);
+	// Only used to release imported models before shutting down the D3D device.
+	void ReleaseModelResources()
+	{
+		if (VertexBuffer) { VertexBuffer->Release(); VertexBuffer = NULL; }
+		if (IndexBuffer) { IndexBuffer->Release(); IndexBuffer = NULL; }
+		if (VS) { VS->Release(); VS = NULL; }
+		if (PS) { PS->Release(); PS = NULL; }
+		if (VS_Buffer) { VS_Buffer->Release(); VS_Buffer = NULL; }
+		if (PS_Buffer) { PS_Buffer->Release(); PS_Buffer = NULL; }
+		if (vertLayout) { vertLayout->Release(); vertLayout = NULL; }
+		if (cbBuffer) { cbBuffer->Release(); cbBuffer = NULL; }
+		if (cbBufferPS) { cbBufferPS->Release(); cbBufferPS = NULL; }
+		if (Texture) { Texture->Release(); Texture = NULL; }
+		if (Texture2) { Texture2->Release(); Texture2 = NULL; }
+		if (NormalTexture) { NormalTexture->Release(); NormalTexture = NULL; }
+		if (TexSamplerState) { TexSamplerState->Release(); TexSamplerState = NULL; }
+		modelLoaded = false;
 	}
 
 	MPrimitives(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, float Height, float Width, LPCWSTR texturePath)
@@ -860,397 +920,220 @@ public:
 
 	
 
-	//Funcion para leer el heightmap
-	void LoadHeightMap(char* filename)
+	// BMP BI_RGB, 24/32 bits. Image bottom edge maps to z=0, as in the template.
+	void LoadHeightMap(const char* filename)
 	{
-		FILE* filePtr;
-		int error;
-		unsigned int count;
-		BITMAPFILEHEADER bitmapFileHeader;
-		BITMAPINFOHEADER bitmapInfoHeader;
-		int imageSize, i, j, k, index;
-		unsigned char* bitmapImage;
-		unsigned char height;
+		const TerrainSettings& cfg = terrainSettings;
+		const float extentX = cfg.width * cfg.horizontalScale;
+		const float extentZ = cfg.depth * cfg.horizontalScale;
+		const float peak = cfg.maxHeight * cfg.verticalScale;
+		if (!std::isfinite(extentX) || !std::isfinite(extentZ) || !std::isfinite(peak)
+			|| cfg.width <= 0 || cfg.depth <= 0 || cfg.horizontalScale <= 0
+			|| cfg.maxHeight < 0 || cfg.verticalScale < 0 || extentX <= 0 || extentZ <= 0
+			|| !std::isfinite(cfg.position.x) || !std::isfinite(cfg.position.y)
+			|| !std::isfinite(cfg.position.z))
+			throw std::runtime_error("Parametros de terreno invalidos.");
 
-		//  Abrimos el heightmap in binario.
-		error = fopen_s(&filePtr, filename, "rb");
-		if (error != 0)
+		std::ifstream file(filename, std::ios::binary | std::ios::ate);
+		if (!file) throw std::runtime_error("No se pudo abrir el heightmap. Revise Texturas y el directorio de trabajo.");
+		const std::streamoff fileSize = file.tellg();
+		file.seekg(0);
+		BITMAPFILEHEADER header = {};
+		BITMAPINFOHEADER info = {};
+		if (!file.read(reinterpret_cast<char*>(&header), sizeof(header))
+			|| !file.read(reinterpret_cast<char*>(&info), sizeof(info)))
+			throw std::runtime_error("Cabecera BMP incompleta.");
+		if (header.bfType != 0x4d42 || info.biSize < sizeof(info) || info.biPlanes != 1
+			|| info.biCompression != BI_RGB || (info.biBitCount != 24 && info.biBitCount != 32))
+			throw std::runtime_error("Use un BMP sin compresion (BI_RGB) de 24 o 32 bits.");
+		// Bound allocations and avoid signed overflow, including LONG_MIN heights.
+		if (info.biWidth < 2 || info.biWidth > 1024 || info.biHeight == 0
+			|| info.biHeight < -1024 || info.biHeight > 1024 || info.biHeight == 1 || info.biHeight == -1)
+			throw std::runtime_error("El heightmap debe medir entre 2 y 1024 pixeles por eje.");
+		tWidth = info.biWidth;
+		tHeight = info.biHeight < 0 ? -info.biHeight : info.biHeight;
+		const size_t bytesPerPixel = info.biBitCount / 8;
+		const size_t rowStride = (tWidth * bytesPerPixel + 3) & ~size_t(3);
+		const unsigned long long dataEnd = static_cast<unsigned long long>(header.bfOffBits)
+			+ rowStride * tHeight;
+		if (header.bfOffBits < sizeof(header) + static_cast<unsigned long long>(info.biSize)
+			|| fileSize < 0 || dataEnd > static_cast<unsigned long long>(fileSize))
+			throw std::runtime_error("Datos BMP truncados o desplazamiento invalido.");
+		file.seekg(header.bfOffBits);
+		terrainVertices.resize(static_cast<size_t>(tWidth) * tHeight);
+		std::vector<unsigned char> row(rowStride);
+		float maxY = 0.0f;
+		for (int storedRow = 0; storedRow < tHeight; ++storedRow)
 		{
-			//Error
-		}
-
-		// Leemos la cabecera del archivo.
-		count = fread(&bitmapFileHeader, sizeof(BITMAPFILEHEADER), 1, filePtr);
-		if (count != 1)
-		{
-			//Error
-		}
-
-		// Leemos la cabecera de info del archivo.
-		count = fread(&bitmapInfoHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
-		if (count != 1)
-		{
-			//Error
-		}
-
-		// Guardamos el ancho y largo del terreno.
-		tWidth = bitmapInfoHeader.biWidth;
-		tHeight = bitmapInfoHeader.biHeight;
-
-		//Calculamos el tamaño.
-		imageSize = tWidth * tHeight * 3;
-
-		//  Apartamos memoria para usar el bitmap.
-		bitmapImage = new unsigned char[imageSize];
-		if (!bitmapImage)
-		{
-			//return false;
-		}
-
-		// Nos movemos al principio de nuestro bitmap.
-		fseek(filePtr, bitmapFileHeader.bfOffBits, SEEK_SET);
-
-		// Leemos la info del bitmap
-		count = fread(bitmapImage, 1, imageSize, filePtr);
-		if (count != imageSize)
-		{
-			//return false;
-		}
-
-		// Cerramos el archivo.
-		error = fclose(filePtr);
-		if (error != 0)
-		{
-			//return false;
-		}
-
-		//  Creamos la estructura para guardar la info del heightmap.
-		SimpleVertex *heightMap = new SimpleVertex[tWidth * tHeight];
-		int numVertexInTwoTriangles = 6;
-		numVertex = (tWidth - 1) * (tHeight - 1) * numVertexInTwoTriangles;
-		numIndex = numVertex;
-		if (!heightMap)
-		{
-			//return false;
-		}
-
-		
-		k = 0;
-
-		float max = 0;
-
-		// Leemos la imagen para sacar la altura.
-		for (j = 0; j<tHeight; j++)
-		{
-			for (i = 0; i<tWidth; i++)
+			if (!file.read(reinterpret_cast<char*>(row.data()), rowStride))
+				throw std::runtime_error("No se pudo leer una fila del heightmap.");
+			const int z = info.biHeight > 0 ? storedRow : tHeight - 1 - storedRow;
+			for (int x = 0; x < tWidth; ++x)
 			{
-				height = bitmapImage[k];
-
-				index = (tHeight * j) + i;
-
-				heightMap[index].pos.x = (float)i;
-				heightMap[index].pos.y = (float)(height /= 15.0f);
-				heightMap[index].pos.z = (float)j;
-
-				if (max < heightMap[index].pos.y)
-					max = heightMap[index].pos.y;
-
-				k += 3;
+				const unsigned char* pixel = &row[x * bytesPerPixel];
+				// Grayscale is preserved exactly; colored BMPs use luminance (BGR).
+				const float intensity = (0.2126f * pixel[2] + 0.7152f * pixel[1] + 0.0722f * pixel[0]) / 255.0f;
+				SimpleVertex& v = terrainVertices[z * tWidth + x];
+				v.pos = D3DXVECTOR3(extentX * x / (tWidth - 1), intensity * peak,
+					extentZ * z / (tHeight - 1));
+				v.tex = D3DXVECTOR2(float(TEXTURE_REPEAT) * x / (tWidth - 1),
+					1.0f - float(TEXTURE_REPEAT) * z / (tHeight - 1));
+				v.normal = D3DXVECTOR3(0, 0, 0);
+				if (v.pos.y > maxY) maxY = v.pos.y;
 			}
 		}
-
-		consBuff.MaxH = max;
-		// Liberamos nuestro bitmap.
-		delete[] bitmapImage;
-		bitmapImage = 0;
-
-		int incrementCount, tuCount, tvCount;
-		float incrementValue, tuCoordinate, tvCoordinate;
-
-
-		// Calculamos que tanto vamos a incrementar las uvs.
-		incrementValue = (float)TEXTURE_REPEAT / (float)tWidth;
-
-		// Calculamos cuantas veces vamos a repetir la textura.
-		incrementCount = tWidth / TEXTURE_REPEAT;
-
-		// Indices para las tu y tv.
-		tuCoordinate = 0.0f;
-		tvCoordinate = 1.0f;
-
-		
-		tuCount = 0;
-		tvCount = 0;
-
-		// Loop para calcular las tu y tv de todo el heightmap.
-		for (j = 0; j<tHeight; j++)
-		{
-			for (i = 0; i<tWidth; i++)
-			{
-				//  Guardamos las coordenadas de textura en el terreno.
-				heightMap[(tHeight * j) + i].tex.x = tuCoordinate;
-				heightMap[(tHeight * j) + i].tex.y = tvCoordinate;
-
-				//  incrementamos el valor de la tu y el indice tu por 1.
-				tuCoordinate += incrementValue;
-				tuCount++;
-
-				// Verificamos que no estamos al limite de la derecha en la textura y si es asi, regresamos.
-				if (tuCount == incrementCount)
-				{
-					tuCoordinate = 0.0f;
-					tuCount = 0;
-				}
-			}
-
-			//  incrementamos el valor de las tv y el indice tu por 1.
-			tvCoordinate -= incrementValue;
-			tvCount++;
-
-			//  Verificamos que no estamos al limite de arriba en la textura y si es asi, regresamos al fondo.
-			if (tvCount == incrementCount)
-			{
-				tvCoordinate = 1.0f;
-				tvCount = 0;
-			}
-		}
-
-		createTerrain(heightMap);
+		// The existing multitexture shader divides local height by MaxH.
+		consBuff.MaxH = maxY > 0.0f ? maxY : 1.0f;
+		createTerrain();
 	}
 
-	void createTerrain(SimpleVertex heightMap[]) 
+	void createTerrain()
 	{
-		int index, i, j;
-		int index1, index2, index3, index4;
-		float tu, tv;
-		index = 0;
-
-		//Creacion de vertices
-		SimpleVertex *vertex = new SimpleVertex[numVertex];
-		heightMapDummy = new SimpleVertex[numVertex];
-		unsigned long* indices = new unsigned long[numVertex];
-		for (j = 0; j<(tHeight - 1); j++)
+		numVertex = static_cast<UINT>(terrainVertices.size());
+		numIndex = (tWidth - 1) * (tHeight - 1) * 6;
+		std::vector<DWORD> indices;
+		indices.reserve(numIndex);
+		for (int z = 0; z < tHeight - 1; ++z)
 		{
-			for (i = 0; i<(tWidth - 1); i++)
+			for (int x = 0; x < tWidth - 1; ++x)
 			{
-				index1 = (tHeight * j) + i;          // Bottom left.
-				index2 = (tHeight * j) + (i + 1);      // Bottom right.
-				index3 = (tHeight * (j + 1)) + i;      // Upper left.
-				index4 = (tHeight * (j + 1)) + (i + 1);  // Upper right.
-
-				// Upper left.
-				tv = heightMap[index3].tex.y;
-
-				//  Modificamos las coordenadas de textura para cubrir la orilla de arriba.
-				if (tv == 1.0f) { tv = 0.0f; }
-
-				vertex[index].pos = D3DXVECTOR3(heightMap[index3].pos.x, heightMap[index3].pos.y, heightMap[index3].pos.z);
-				vertex[index].tex = D3DXVECTOR2(heightMap[index3].tex.x, tv);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
-
-				// Upper right.
-				tu = heightMap[index4].tex.x;
-				tv = heightMap[index4].tex.y;
-
-				// Modificamos las coordenadas de textura para cubrir la orilla de arriba y de la derecha.
-				if (tu == 0.0f) { tu = 1.0f; }
-				if (tv == 1.0f) { tv = 0.0f; }
-
-				vertex[index].pos = D3DXVECTOR3(heightMap[index4].pos.x, heightMap[index4].pos.y, heightMap[index4].pos.z);
-				vertex[index].tex = D3DXVECTOR2(tu, tv);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
-
-				// Bottom left.
-				vertex[index].pos = D3DXVECTOR3(heightMap[index1].pos.x, heightMap[index1].pos.y, heightMap[index1].pos.z);
-				vertex[index].tex = D3DXVECTOR2(heightMap[index1].tex.x, heightMap[index1].tex.y);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
-
-				// Bottom left.
-				vertex[index].pos = D3DXVECTOR3(heightMap[index1].pos.x, heightMap[index1].pos.y, heightMap[index1].pos.z);
-				vertex[index].tex = D3DXVECTOR2(heightMap[index1].tex.x, heightMap[index1].tex.y);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
-
-				// Upper right.
-				tu = heightMap[index4].tex.x;
-				tv = heightMap[index4].tex.y;
-
-				// Modificamos las coordenadas de textura para cubrir la orilla de arriba y la derecha.
-				if (tu == 0.0f) { tu = 1.0f; }
-				if (tv == 1.0f) { tv = 0.0f; }
-
-				vertex[index].pos = D3DXVECTOR3(heightMap[index4].pos.x, heightMap[index4].pos.y, heightMap[index4].pos.z);
-				vertex[index].tex = D3DXVECTOR2(tu, tv);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
-
-				// Bottom right.
-				tu = heightMap[index2].tex.x;
-
-				// Modificamos las coordenadas de textura para cubrir la orilla de la derecha.
-				if (tu == 0.0f) { tu = 1.0f; }
-
-				vertex[index].pos = D3DXVECTOR3(heightMap[index2].pos.x, heightMap[index2].pos.y, heightMap[index2].pos.z);
-				vertex[index].tex = D3DXVECTOR2(tu, heightMap[index2].tex.y);
-				vertex[index].normal = vertex[index].pos;
-				indices[index] = index;
-				index++;
+				const DWORD a = z * tWidth + x, b = a + 1;
+				const DWORD c = a + tWidth, d = c + 1;
+				const DWORD cell[] = { c, d, a, a, d, b };
+				indices.insert(indices.end(), cell, cell + 6);
 			}
 		}
-
-		heightMapDummy = vertex;
-
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(SimpleVertex)*numVertex;
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = vertex;
-		d3d11Device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &VertexBuffer);
-
-		D3D11_BUFFER_DESC indexBufferDesc;
-		ZeroMemory(&indexBufferDesc, 
-			sizeof(indexBufferDesc));
-
-		indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		indexBufferDesc.ByteWidth = sizeof(unsigned long)* numIndex;
-		indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-		indexBufferDesc.CPUAccessFlags = 0;
-		indexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA iinitData;
-
-		iinitData.pSysMem = indices;
-		d3d11Device->CreateBuffer(&indexBufferDesc, 
-			&iinitData, 
-			&IndexBuffer);
+		// Area-weighted normals from the actual triangles, pointing upward.
+		for (size_t i = 0; i < indices.size(); i += 3)
+		{
+			SimpleVertex& a = terrainVertices[indices[i]];
+			SimpleVertex& b = terrainVertices[indices[i + 1]];
+			SimpleVertex& c = terrainVertices[indices[i + 2]];
+			D3DXVECTOR3 e1 = b.pos - a.pos, e2 = c.pos - a.pos, normal;
+			D3DXVec3Cross(&normal, &e1, &e2);
+			a.normal += normal;
+			b.normal += normal;
+			c.normal += normal;
+		}
+		for (int z = 0; z < tHeight; ++z)
+		{
+			for (int x = 0; x < tWidth; ++x)
+			{
+				SimpleVertex& v = terrainVertices[z * tWidth + x];
+				D3DXVec3Normalize(&v.normal, &v.normal);
+				const int left = x > 0 ? x - 1 : x, right = x + 1 < tWidth ? x + 1 : x;
+				v.tangent = terrainVertices[z * tWidth + right].pos - terrainVertices[z * tWidth + left].pos;
+				v.tangent -= v.normal * D3DXVec3Dot(&v.normal, &v.tangent);
+				D3DXVec3Normalize(&v.tangent, &v.tangent);
+				D3DXVec3Cross(&v.biTangent, &v.normal, &v.tangent);
+			}
+		}
+		D3D11_BUFFER_DESC desc = {};
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.ByteWidth = sizeof(SimpleVertex) * numVertex;
+		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		D3D11_SUBRESOURCE_DATA data = {};
+		data.pSysMem = terrainVertices.data();
+		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &VertexBuffer)))
+			throw std::runtime_error("No se pudo crear el vertex buffer del terreno.");
+		desc.ByteWidth = sizeof(DWORD) * numIndex;
+		desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		data.pSysMem = indices.data();
+		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &IndexBuffer)))
+		{
+			VertexBuffer->Release();
+			VertexBuffer = NULL;
+			throw std::runtime_error("No se pudo crear el index buffer del terreno.");
+		}
 	}
 
-	//Para cargar el obj
-	bool LoadModel(char* filename)
+	// Converted OBJ reader. A malformed file must fail rather than loop at EOF.
+	bool LoadModel(const char* filename)
 	{
-
-		ifstream fin;
-		char input;
-		int i;
-
-		//Abrimos el archivo del modelo
-		fin.open(filename);
-
-		//Si no se pudo abrir el modelo regresa falso
-		if (fin.fail())
+		std::ifstream file(filename);
+		std::string header;
+		UINT count = 0;
+		if (!std::getline(file, header) || header.find("Vertex Count:") != 0)
 			return false;
-
-		//Leemos hasta los ":" para leer la cantidada de vertices
-		fin.get(input);
-		while (input != ':')
-			fin.get(input);
-
-		//Leemos la cantidad de vertices
-		fin >> numVertex;
-
-		//Ponemos que la cantidad de indices sea la misma que la cantidad de vertices
-		numIndex = numVertex;
-
-		//creamos la estructura para guardar los datos del modelo utilizando como referencia
-		//para la cantidad de espacio que se ocupara la cantidad de vertices
-		SimpleVertex *ModelObject = new SimpleVertex[numVertex];
-
-		//Leemos desde el principio de la informacion
-		fin.get(input);
-		while (input != ':')
-			fin.get(input);
-		fin.get(input);
-		fin.get(input);
-
-		//Leemos la informacion de cada vertice
-		for (i = 0; i<numVertex; i++){
-			fin >> ModelObject[i].pos.x >> ModelObject[i].pos.y >> ModelObject[i].pos.z;
-			fin >> ModelObject[i].tex.x >> ModelObject[i].tex.y;
-			fin >> ModelObject[i].normal.x >> ModelObject[i].normal.y >> ModelObject[i].normal.z;
+		try
+		{
+			const unsigned long parsed = std::stoul(header.substr(13));
+			if (parsed == 0 || parsed > 1000000 || parsed % 3 != 0) return false;
+			count = static_cast<UINT>(parsed);
 		}
-
-		//Cerramos el archivo
-		fin.close();
-
-		createModelObject(ModelObject);
-
-		return true;
+		catch (const std::exception&) { return false; }
+		bool foundData = false;
+		while (std::getline(file, header))
+		{
+			if (header == "Data:") { foundData = true; break; }
+		}
+		if (!foundData) return false;
+		std::vector<SimpleVertex> vertices(count);
+		float minY = 0.0f, maxY = 0.0f;
+		for (UINT i = 0; i < count; ++i)
+		{
+			SimpleVertex& v = vertices[i];
+			if (!(file >> v.pos.x >> v.pos.y >> v.pos.z >> v.tex.x >> v.tex.y
+				>> v.normal.x >> v.normal.y >> v.normal.z)) return false;
+			if (!std::isfinite(v.pos.x) || !std::isfinite(v.pos.y) || !std::isfinite(v.pos.z)
+				|| !std::isfinite(v.tex.x) || !std::isfinite(v.tex.y)
+				|| !std::isfinite(v.normal.x) || !std::isfinite(v.normal.y)
+				|| !std::isfinite(v.normal.z) || D3DXVec3LengthSq(&v.normal) < 0.000001f)
+				return false;
+			D3DXVec3Normalize(&v.normal, &v.normal);
+			if (i == 0 || v.pos.y < minY) minY = v.pos.y;
+			if (i == 0 || v.pos.y > maxY) maxY = v.pos.y;
+		}
+		numVertex = numIndex = count;
+		modelHeight = maxY - minY;
+		return createModelObject(vertices.data());
 	}
 
-	void createModelObject(SimpleVertex *ModelObject)
+	bool createModelObject(SimpleVertex* vertices)
 	{
-		//estas son las coordenadas de los vertices
-		SimpleVertex* vertex = new SimpleVertex[numVertex];
-		unsigned long* indices = new unsigned long[numVertex];
-		for (int i = 0; i<numVertex; i++){
-
-			vertex[i].pos = D3DXVECTOR3(ModelObject[i].pos.x, ModelObject[i].pos.y, ModelObject[i].pos.z);
-			vertex[i].tex = D3DXVECTOR2(ModelObject[i].tex.x, ModelObject[i].tex.y);
-			vertex[i].normal = D3DXVECTOR3(ModelObject[i].normal.x, ModelObject[i].normal.y, ModelObject[i].normal.z);
-
-			indices[i] = i;
-		}
-
-		D3D11_BUFFER_DESC vertexBufferDesc;
-		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
-
-		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(SimpleVertex)*numVertex;
-		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-		vertexBufferDesc.CPUAccessFlags = 0;
-		vertexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = vertex;
-		d3d11Device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &VertexBuffer);
-
-		//los indices
-		int numTriangles = numIndex / 3;
-		for(int i = 0; i < numTriangles; ++i)
+		std::vector<DWORD> indices(numIndex);
+		for (UINT i = 0; i < numIndex; ++i) indices[i] = i;
+		// Populate the complete vertex before upload, including degenerate atlas UVs.
+		for (UINT i = 0; i < numVertex; i += 3)
 		{
-			UINT i0 = indices[i*3+0];
-			UINT i1 = indices[i*3+1];
-			UINT i2 = indices[i*3+2];
-
-			CalculateTangentBinormal(vertex[i0], vertex[i1], vertex[i2], vertex[i0].tangent, vertex[i0].biTangent);
-			CalculateTangentBinormal(vertex[i0], vertex[i1], vertex[i2], vertex[i1].tangent, vertex[i1].biTangent);
-			CalculateTangentBinormal(vertex[i0], vertex[i1], vertex[i2], vertex[i2].tangent, vertex[i2].biTangent);
+			const D3DXVECTOR3 edge1 = vertices[i + 1].pos - vertices[i].pos;
+			const D3DXVECTOR3 edge2 = vertices[i + 2].pos - vertices[i].pos;
+			const D3DXVECTOR2 uv1 = vertices[i + 1].tex - vertices[i].tex;
+			const D3DXVECTOR2 uv2 = vertices[i + 2].tex - vertices[i].tex;
+			const float determinant = uv1.x * uv2.y - uv2.x * uv1.y;
+			for (UINT j = i; j < i + 3; ++j)
+			{
+				SimpleVertex& v = vertices[j];
+				D3DXVECTOR3 tangent = edge1;
+				if (fabsf(determinant) > 0.000001f)
+					tangent = (edge1 * uv2.y - edge2 * uv1.y) / determinant;
+				tangent -= v.normal * D3DXVec3Dot(&v.normal, &tangent);
+				if (D3DXVec3LengthSq(&tangent) < 0.000001f)
+				{
+					D3DXVECTOR3 axis = fabsf(v.normal.y) < 0.9f ? D3DXVECTOR3(0, 1, 0) : D3DXVECTOR3(1, 0, 0);
+					D3DXVec3Cross(&tangent, &axis, &v.normal);
+				}
+				D3DXVec3Normalize(&v.tangent, &tangent);
+				D3DXVec3Cross(&v.biTangent, &v.normal, &v.tangent);
+			}
 		}
-
-		D3D11_BUFFER_DESC indexBufferDesc;
-		ZeroMemory(&indexBufferDesc, 
-			sizeof(indexBufferDesc));
-
-		indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		indexBufferDesc.ByteWidth = sizeof(DWORD)* numIndex;
-		indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-		indexBufferDesc.CPUAccessFlags = 0;
-		indexBufferDesc.MiscFlags = 0;
-
-		D3D11_SUBRESOURCE_DATA iinitData;
-
-		iinitData.pSysMem = indices;
-		d3d11Device->CreateBuffer(&indexBufferDesc, 
-			&iinitData, 
-			&IndexBuffer);
+		D3D11_BUFFER_DESC desc = {};
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.ByteWidth = sizeof(SimpleVertex) * numVertex;
+		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+		D3D11_SUBRESOURCE_DATA data = {};
+		data.pSysMem = vertices;
+		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &VertexBuffer))) return false;
+		desc.ByteWidth = sizeof(DWORD) * numIndex;
+		desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+		data.pSysMem = indices.data();
+		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &IndexBuffer)))
+		{
+			VertexBuffer->Release();
+			VertexBuffer = NULL;
+			return false;
+		}
+		return true;
 	}
 
 	void setTangentBinormal(SimpleVertex *vertex, DWORD *indices, int base) 
@@ -1394,17 +1277,29 @@ public:
 		d3d11DevCon->DrawIndexed(numIndex, 0, 0);
 	}
 
-	float getTerrainCollision(D3DXVECTOR2 XZ){
-
-		if (heightMapDummy != NULL){
-
-			for (int x = 0; x < numVertex; x++){
-
-				if ((int)heightMapDummy[x].pos.x == (int)XZ.x && (int)heightMapDummy[x].pos.z == (int)XZ.y)
-					return heightMapDummy[x].pos.y;
-			}
-		}
-		return 0;
+	float getTerrainCollision(D3DXVECTOR2 XZ)
+	{
+		if (!terrainLoaded) return 0.0f;
+		// Terrain world transform is translation only; scale is baked into the mesh.
+		const float extentX = terrainSettings.width * terrainSettings.horizontalScale;
+		const float extentZ = terrainSettings.depth * terrainSettings.horizontalScale;
+		float gx = (XZ.x - World._41) * (tWidth - 1) / extentX;
+		float gz = (XZ.y - World._43) * (tHeight - 1) / extentZ;
+		if (gx < 0 || gz < 0 || gx > tWidth - 1 || gz > tHeight - 1)
+			return World._42; // Outside the terrain: retain the template's base-plane behavior.
+		int x = static_cast<int>(gx), z = static_cast<int>(gz);
+		if (x == tWidth - 1) --x;
+		if (z == tHeight - 1) --z;
+		const float u = gx - x, v = gz - z;
+		const size_t a = z * tWidth + x;
+		const float h00 = terrainVertices[a].pos.y;
+		const float h10 = terrainVertices[a + 1].pos.y;
+		const float h01 = terrainVertices[a + tWidth].pos.y;
+		const float h11 = terrainVertices[a + tWidth + 1].pos.y;
+		// Same diagonal as the rendered mesh (a--d), avoiding bilinear mismatch.
+		const float height = v >= u ? h00 + (h11 - h01) * u + (h01 - h00) * v
+			: h00 + (h10 - h00) * u + (h11 - h10) * v;
+		return height + World._42;
 	}
 
 	D3DXMATRIX getWorldMatrix(){
