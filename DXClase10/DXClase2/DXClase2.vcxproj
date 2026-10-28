@@ -121,6 +121,26 @@
     <None Include="Models\PablitoPinwi\Poción.png" />
     <None Include="Tools\convert_obj.py" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Models\pablitopinwi.txt" />
+    <None Include="Models\casa.txt" />
+    <None Include="Models\mesa.txt" />
+    <None Include="Models\pocion.txt" />
+    <None Include="Models\tree.txt" />
+    <None Include="Models\fence.txt" />
+    <None Include="Models\furnace.txt" />
+    <None Include="Models\pipe.txt" />
+    <None Include="Models\corner_pipe.txt" />
+    <None Include="Texturas\casa.png" />
+    <None Include="Texturas\mesa.png" />
+    <None Include="Texturas\pocion.png" />
+    <None Include="Texturas\tree.png" />
+    <None Include="Texturas\fence.png" />
+    <None Include="Texturas\furnace.png" />
+    <None Include="Texturas\pipe.png" />
+    <None Include="Texturas\corner_pipe.png" />
+    <None Include="Texturas\skybox.png" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

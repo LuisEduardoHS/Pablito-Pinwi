@@ -119,3 +119,17 @@ otras configuraciones de compilación.
 La textura de tierra `Texturas/dirt_diff.png` es una copia del archivo
 `Downloads/dirt/Meshpart1_diff.png` proporcionado. Se renombró para evitar
 sobrescribir el archivo de pasto, que tiene el mismo nombre de origen.
+
+## Integración de main del 28 de octubre de 2026
+
+Se incorporó el cielo `Texturas/skybox.png` y los seis modelos adicionales de main:
+Pablito, árbol, cerca, horno, tubo y codo. Los tres modelos locales (casa, mesa y
+poción) se conservaron para evitar duplicar sus instancias. Los archivos remotos
+alternativos de esos tres también permanecen en el repositorio.
+
+Los modelos nuevos se centran en su base durante la carga y su Y se obtiene de
+la altura del terreno. Cada modelo tiene una escala independiente en el constructor
+de DXRender. Las posiciones están en `UpdateImportedModels()`; `PlaceModel()`
+aplica escala, rotación y traslación. La poción sigue colocada sobre la mesa.
+Pablito conserva el material provisional `escudo.jpg` incluido en main.
+La tabla y los bloques de código actuales están en `../../GUIA_CAPTURAS_AVANCE_2.md`.

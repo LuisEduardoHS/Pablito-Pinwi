@@ -63,7 +63,7 @@ private:
 
 	int CantOfSections;
 	int TEXTURE_REPEAT;
-	bool faceToCam;
+	bool faceToCam = false;
 
 	//The constant buffer Structure
 	struct ConstantBuffer
@@ -193,7 +193,7 @@ public:
 
 	// Imported meshes use the converted Vertex Count/Data format of the template.
 	MPrimitives(ID3D11Device* device, ID3D11DeviceContext* context, const char* modelObjectPath,
-		LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType)
+		LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType, bool centerBase = false)
 	{
 		faceToCam = false;
 		VertexBuffer = NULL;
@@ -202,7 +202,7 @@ public:
 		numVertex = numIndex = 0;
 		consBuff.MaxH = 1.0f;
 		InitScene(device, context, texturePath, textureNormalPath, ShaderType);
-		modelLoaded = LoadModel(modelObjectPath) && Texture != NULL;
+		modelLoaded = LoadModel(modelObjectPath, centerBase) && Texture != NULL;
 		if (!modelLoaded)
 			MessageBoxA(NULL, modelObjectPath, "No se pudo cargar el modelo o su textura", MB_OK | MB_ICONERROR);
 	}
@@ -1048,7 +1048,7 @@ public:
 	}
 
 	// Converted OBJ reader. A malformed file must fail rather than loop at EOF.
-	bool LoadModel(const char* filename)
+	bool LoadModel(const char* filename, bool centerBase = false)
 	{
 		std::ifstream file(filename);
 		std::string header;
@@ -1070,6 +1070,7 @@ public:
 		if (!foundData) return false;
 		std::vector<SimpleVertex> vertices(count);
 		float minY = 0.0f, maxY = 0.0f;
+		D3DXVECTOR3 low(0, 0, 0), high(0, 0, 0);
 		for (UINT i = 0; i < count; ++i)
 		{
 			SimpleVertex& v = vertices[i];
@@ -1081,11 +1082,21 @@ public:
 				|| !std::isfinite(v.normal.z) || D3DXVec3LengthSq(&v.normal) < 0.000001f)
 				return false;
 			D3DXVec3Normalize(&v.normal, &v.normal);
+			if (i == 0) low = high = v.pos;
+			if (v.pos.x < low.x) low.x = v.pos.x;
+			if (v.pos.z < low.z) low.z = v.pos.z;
+			if (v.pos.x > high.x) high.x = v.pos.x;
+			if (v.pos.z > high.z) high.z = v.pos.z;
 			if (i == 0 || v.pos.y < minY) minY = v.pos.y;
 			if (i == 0 || v.pos.y > maxY) maxY = v.pos.y;
 		}
 		numVertex = numIndex = count;
 		modelHeight = maxY - minY;
+		if (centerBase)
+		{
+			const D3DXVECTOR3 origin((low.x + high.x) * 0.5f, minY, (low.z + high.z) * 0.5f);
+			for (SimpleVertex& v : vertices) v.pos -= origin;
+		}
 		return createModelObject(vertices.data());
 	}
 

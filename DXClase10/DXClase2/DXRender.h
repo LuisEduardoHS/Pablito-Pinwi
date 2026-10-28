@@ -42,6 +42,16 @@ private:
 	MPrimitives *casa;
 	MPrimitives *mesa;
 	MPrimitives *pocion;
+	MPrimitives *pablito;
+	MPrimitives *tree;
+	MPrimitives *fence;
+	MPrimitives *furnace;
+	MPrimitives *pipe;
+	MPrimitives *corner_pipe;
+
+	// Individual model scales (main integration).
+	float pablitoScale, casaScale, pocionScale, mesaScale;
+	float treeScale, fenceScale, furnaceScale, pipeScale, cornerPipeScale;
 	MPrimitives *BoundingSphere1;
 	MPrimitives *BoundingSphere2;
 
@@ -70,6 +80,9 @@ public:
 		terrainSettings.verticalScale = 1.0f;
 		terrainSettings.horizontalScale = 3.0f;
 		terrainSettings.position = D3DXVECTOR3(0, 0, 0);
+		casaScale = mesaScale = pocionScale = 4.0f;
+		pablitoScale = treeScale = fenceScale = furnaceScale = 1.0f;
+		pipeScale = cornerPipeScale = 1.0f;
 		rotPerFrame = 0.0f;
 		isJumping = false;
 		jumpVelocity = 0.0f;
@@ -167,7 +180,7 @@ public:
 		cono = new MPrimitives(d3d11Device, d3d11DevCon, 16, 0.0f, 1.0f, 2.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		billboard = new MPrimitives(d3d11Device, d3d11DevCon, 2.0f, 2.0f, L"Texturas/ave.png");
 		
-		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/sky.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/skybox.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/dirt_diff.png", L"Texturas/Meshpart1_diff.png", "Texturas/PablitoPinwi_Heightmap_256.bmp", ShaderMultitextura);
 
 		if (!terreno->IsTerrainLoaded()) return false;
@@ -180,6 +193,22 @@ public:
 		pocion = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Pocion.txt",
 			L"Models/PablitoPinwi/Poci\u00f3n.png", L"", ShaderDiffuse);
 		if (!casa->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
+
+		// Additional models from origin/main. Recenter their exported origins at the base.
+		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi.txt",
+			L"Texturas/escudo.jpg", L"", ShaderDiffuse, true);
+		tree = new MPrimitives(d3d11Device, d3d11DevCon, "Models/tree.txt",
+			L"Texturas/tree.png", L"", ShaderDiffuse, true);
+		fence = new MPrimitives(d3d11Device, d3d11DevCon, "Models/fence.txt",
+			L"Texturas/fence.png", L"", ShaderDiffuse, true);
+		furnace = new MPrimitives(d3d11Device, d3d11DevCon, "Models/furnace.txt",
+			L"Texturas/furnace.png", L"", ShaderDiffuse, true);
+		pipe = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pipe.txt",
+			L"Texturas/pipe.png", L"", ShaderDiffuse, true);
+		corner_pipe = new MPrimitives(d3d11Device, d3d11DevCon, "Models/corner_pipe.txt",
+			L"Texturas/corner_pipe.png", L"", ShaderDiffuse, true);
+		if (!pablito->IsModelLoaded() || !tree->IsModelLoaded() || !fence->IsModelLoaded()
+			|| !furnace->IsModelLoaded() || !pipe->IsModelLoaded() || !corner_pipe->IsModelLoaded()) return false;
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		BoundingSphere2 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
@@ -328,6 +357,12 @@ public:
 		delete casa;
 		delete mesa;
 		delete pocion;
+		MPrimitives* additionalModels[] = { pablito, tree, fence, furnace, pipe, corner_pipe };
+		for (MPrimitives* model : additionalModels)
+		{
+			model->ReleaseModelResources();
+			delete model;
+		}
 		//Release the COM Objects we created
 		SwapChain->Release();
 		d3d11Device->Release();
@@ -368,26 +403,44 @@ public:
 		return true;
 	}
 
+	// Centered model base rests on the terrain; yaw is in degrees.
+	void PlaceModel(MPrimitives* model, float x, float z, float size, float yaw = 0.0f)
+	{
+		D3DXMATRIX scaling, rotation, translation;
+		D3DXMatrixScaling(&scaling, size, size, size);
+		D3DXMatrixRotationY(&rotation, D3DXToRadian(yaw));
+		D3DXMatrixTranslation(&translation, x, terreno->getTerrainCollision(D3DXVECTOR2(x, z)), z);
+		model->UpdateScene(scaling * rotation * translation);
+	}
+
 	// Edit X/Z, scale and yaw here to arrange the imported models.
 	void UpdateImportedModels()
 	{
-		const float modelScale = 4.0f;
 		const D3DXVECTOR2 houseXZ(384.0f, 435.0f);
 		const D3DXVECTOR2 tableXZ(384.0f, 403.0f);
 		const float houseYaw = 65.0f; // Degrees.
 		const float houseY = terreno->getTerrainCollision(houseXZ) - 0.15f;
 		const float tableY = terreno->getTerrainCollision(tableXZ);
 		D3DXMATRIX scaling, rotation, translation;
-		D3DXMatrixScaling(&scaling, modelScale, modelScale, modelScale);
+		D3DXMatrixScaling(&scaling, casaScale, casaScale, casaScale);
 		D3DXMatrixRotationY(&rotation, D3DXToRadian(houseYaw));
 		D3DXMatrixTranslation(&translation, houseXZ.x, houseY, houseXZ.y);
 		casa->UpdateScene(scaling * rotation * translation);
+		D3DXMatrixScaling(&scaling, mesaScale, mesaScale, mesaScale);
 		D3DXMatrixTranslation(&translation, tableXZ.x, tableY, tableXZ.y);
 		mesa->UpdateScene(scaling * translation);
 		// Centered on the tabletop, using its measured height instead of a fixed Y.
+		D3DXMatrixScaling(&scaling, pocionScale, pocionScale, pocionScale);
 		D3DXMatrixTranslation(&translation, tableXZ.x,
-			tableY + mesa->GetModelHeight() * modelScale, tableXZ.y);
+			tableY + mesa->GetModelHeight() * mesaScale, tableXZ.y);
 		pocion->UpdateScene(scaling * translation);
+
+		PlaceModel(pablito, 378.0f, 399.0f, pablitoScale, 180.0f);
+		PlaceModel(tree, 360.0f, 438.0f, treeScale);
+		PlaceModel(fence, 403.0f, 427.0f, fenceScale);
+		PlaceModel(furnace, 394.0f, 412.0f, furnaceScale);
+		PlaceModel(pipe, 399.0f, 407.0f, pipeScale);
+		PlaceModel(corner_pipe, 402.0f, 415.0f, cornerPipeScale);
 	}
 
 	void UpdateScene()
@@ -495,6 +548,12 @@ public:
 		casa->DrawScene(camara);
 		mesa->DrawScene(camara);
 		pocion->DrawScene(camara);
+		pablito->DrawScene(camara);
+		tree->DrawScene(camara);
+		fence->DrawScene(camara);
+		furnace->DrawScene(camara);
+		pipe->DrawScene(camara);
+		corner_pipe->DrawScene(camara);
 
 		terreno->DrawScene(camara);
 		skydomo->DrawScene(skyCamara);

@@ -102,4 +102,60 @@
       <Filter>Modelos Pablito Pinwi</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Models\pablitopinwi.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\casa.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\mesa.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\pocion.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\tree.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\fence.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\furnace.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\pipe.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Models\corner_pipe.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\casa.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\mesa.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\pocion.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\tree.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\fence.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\furnace.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\pipe.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\corner_pipe.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\skybox.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+  </ItemGroup>
 </Project>
