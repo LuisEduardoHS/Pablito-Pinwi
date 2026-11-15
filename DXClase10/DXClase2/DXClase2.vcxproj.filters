@@ -38,6 +38,12 @@
     <ClInclude Include="DayNightCycle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="InteractionPrompt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneCollision.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="MeshPrimitives.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -205,6 +211,21 @@
       <Filter>Source Files</Filter>
     </None>
     <None Include="Tools\check_valley.py">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="interactionPrompt.hlsl">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Texturas\Tecla-E.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="INTERACCIONES.md">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="COLISIONES.md">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Tools\check_scene_collision.cpp">
       <Filter>Source Files</Filter>
     </None>
   </ItemGroup>

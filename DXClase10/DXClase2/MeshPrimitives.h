@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 #include "ShaderCompiler.h"
+#include "SceneCollision.h"
 
 struct TerrainSettings
 {
@@ -101,6 +102,8 @@ private:
 	bool modelLoaded = false;
 	float modelHeight = 0.0f;
 	D3DXVECTOR3 modelSize = D3DXVECTOR3(0, 0, 0);
+	SceneCollision::MeshCollider collider;
+	bool generateCollider = true;
 
 	
 
@@ -111,7 +114,7 @@ public:
 		float Radius;
 	};
 
-	SphereBoundingInfo* PrimitiveBoundings;
+	SphereBoundingInfo* PrimitiveBoundings = NULL;
 
 	MPrimitives(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, float Size, LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType)
 	{
@@ -223,12 +226,30 @@ public:
 		InitScene(device, context, texturePath, textureNormalPath, ShaderType);
 		modelLoaded = LoadModel(modelObjectPath, centerBase) && Texture != NULL;
 		if (!modelLoaded)
+		{
+			collider.Clear();
 			MessageBoxA(NULL, modelObjectPath, "No se pudo cargar el modelo o su textura", MB_OK | MB_ICONERROR);
+		}
 	}
 
 	bool IsModelLoaded() const { return modelLoaded; }
 	float GetModelHeight() const { return modelHeight; }
 	D3DXVECTOR3 GetModelSize() const { return modelSize; }
+	void SetCollisionEnabled(bool enabled) { collider.SetEnabled(enabled); }
+	const SceneCollision::MeshCollider* GetCollider() const { return &collider; }
+	void BuildCollisionGeometry(const SimpleVertex* vertices, const DWORD* indices)
+	{
+		if (!generateCollider) return;
+		std::vector<SceneCollision::Triangle> triangles;
+		triangles.reserve(numIndex / 3);
+		for (UINT i = 0; i + 2 < numIndex; i += 3)
+		{
+			if (indices[i] >= numVertex || indices[i+1] >= numVertex || indices[i+2] >= numVertex) continue;
+			triangles.emplace_back(vertices[indices[i]].pos, vertices[indices[i+1]].pos, vertices[indices[i+2]].pos);
+		}
+		collider.Build(triangles);
+		collider.SetWorld(World);
+	}
 
 	// A tiny GPU texture lets procedural placeholders use the normal lit material.
 	bool SetSolidColor(unsigned char red, unsigned char green, unsigned char blue)
@@ -257,6 +278,9 @@ public:
 	// Release mesh and optional terrain material resources before the D3D device.
 	void ReleaseModelResources()
 	{
+		collider.Clear();
+		delete PrimitiveBoundings;
+		PrimitiveBoundings = NULL;
 		if (VertexBuffer) { VertexBuffer->Release(); VertexBuffer = NULL; }
 		if (IndexBuffer) { IndexBuffer->Release(); IndexBuffer = NULL; }
 		if (VS) { VS->Release(); VS = NULL; }
@@ -300,6 +324,7 @@ public:
 	{
 		//Inicializacion de variables
 		D3DXMatrixIdentity(&World);
+		generateCollider = ShaderType != ShaderSky && ShaderType != ShaderGUI;
 		VertexBuffer = IndexBuffer = cbBuffer = cbBufferPS = NULL;
 		VS = NULL;
 		PS = NULL;
@@ -657,7 +682,8 @@ public:
 				indices[index++] = index2;
 			}
 		}
-		setTangentBinormal(vertex, indices, 6);
+		numIndex = index;
+		setTangentBinormal(vertex, indices, 3);
 
 		D3D11_BUFFER_DESC indexBufferDesc;
 		ZeroMemory(&indexBufferDesc,
@@ -740,7 +766,8 @@ public:
 				indices[index++] = index2;
 			}
 		}
-		setTangentBinormal(vertex, indices, 6);
+		numIndex = index;
+		setTangentBinormal(vertex, indices, 3);
 
 		D3D11_BUFFER_DESC indexBufferDesc;
 		ZeroMemory(&indexBufferDesc,
@@ -872,7 +899,8 @@ public:
 				indices[index++] = index3;
 			}
 		}
-		setTangentBinormal(vertex, indices, 6);
+		numIndex = index;
+		setTangentBinormal(vertex, indices, 3);
 
 		D3D11_BUFFER_DESC indexBufferDesc;
 		ZeroMemory(&indexBufferDesc,
@@ -1209,6 +1237,7 @@ public:
 			VertexBuffer = NULL;
 			return false;
 		}
+		BuildCollisionGeometry(vertices, indices.data());
 		return true;
 	}
 
@@ -1225,6 +1254,7 @@ public:
 			CalculateTangentBinormal(vertex[i0], vertex[i1], vertex[i2], vertex[i1].tangent, vertex[i1].biTangent);
 			CalculateTangentBinormal(vertex[i0], vertex[i1], vertex[i2], vertex[i2].tangent, vertex[i2].biTangent);
 		}
+		BuildCollisionGeometry(vertex, indices);
 	}
 
 	void CalculateTangentBinormal(SimpleVertex vertex1, SimpleVertex vertex2, SimpleVertex vertex3,
@@ -1273,6 +1303,7 @@ public:
 	void UpdateScene(D3DXMATRIX World)
 	{
 		this->World = World;
+		collider.SetWorld(World);
 	}
 
 	// SunLight owns the depth shaders/state; each mesh supplies its geometry/material.

@@ -34,10 +34,10 @@ para que la cabeza no tape la vista; su sombra permanece en el terreno.
 - `Camara::UpdateRotation()`: límite vertical de ±85 grados; el movimiento
   siempre usa los ejes horizontales aunque se mire arriba o abajo.
 
-La cámara de tercera persona comprueba el tramo entre los ojos y su posición
-deseada con 48 muestras y se acerca cuando encuentra terreno, con un margen
-de 0.4 unidades. Esta protección contempla el terreno; no incorpora colisión
-con la casa ni los demás objetos de la plantilla.
+La cámara de tercera persona comprueba los modelos entre los ojos y su posición
+deseada, y se acerca con un margen de 0.3 unidades si encuentra una pared.
+Después comprueba el terreno con 48 muestras y un margen de 0.4 unidades.
+`COLISIONES.md` describe la generación automática de colisiones de los modelos.
 
 La malla exportada mira hacia +X. Su matriz aplica un desfase de −90 grados
 respecto al rumbo de Pablito para alinearla con el avance. La actualización
@@ -50,6 +50,9 @@ al alcance de E desde el inicio. E sube cuando está a un máximo de 4.5 unidade
 del centro y a menos de 3 unidades de diferencia vertical respecto a la cubierta;
 otra pulsación baja al terreno junto al costado derecho. Mantener E no repite
 la acción. La barra de título indica cuándo se puede subir y cómo bajar.
+También aparece la imagen de la tecla E sobre la nube al poder subir; se
+oculta mientras se conduce. `INTERACCIONES.md` explica cómo usar el mismo
+indicador en los próximos objetos interactuables.
 
 Al subir, Pablito queda de pie sobre la plataforma y la maneja con WASD o el
 stick izquierdo, en relación con la orientación de la cámara. Se mueve a
@@ -61,6 +64,8 @@ La cámara pasa obligatoriamente a tercera persona, con más distancia para
 encuadrar el vehículo. C y D-pad ↑ quedan bloqueados durante el manejo.
 Al bajar se recupera la perspectiva que estaba activa antes de subir.
 El salto se cancela al montar y se desactiva mientras se conduce.
+La nube también se detiene ante los modelos del escenario. Al bajar se busca
+un costado libre y se comprueba que Pablito pueda llegar sin atravesar paredes.
 
 El tamaño provisional es 4 × 0.6 × 5 unidades, con 0.8 unidades de separación
 del terreno bajo la plataforma. `cloudSize`, `cloudSpeed`, `cloudHoverHeight`

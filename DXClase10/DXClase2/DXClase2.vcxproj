@@ -96,6 +96,8 @@
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="SunLight.h" />
     <ClInclude Include="DayNightCycle.h" />
+    <ClInclude Include="InteractionPrompt.h" />
+    <ClInclude Include="SceneCollision.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Texturas\PablitoPinwi_Heightmap_256.bmp" />
@@ -116,6 +118,11 @@
     <None Include="Texturas\T_Moon.png" />
     <None Include="Texturas\T_Stars.png" />
     <None Include="pixelShaderGUI.ps" />
+    <None Include="interactionPrompt.hlsl" />
+    <None Include="Texturas\Tecla-E.png" />
+    <None Include="INTERACCIONES.md" />
+    <None Include="COLISIONES.md" />
+    <None Include="Tools\check_scene_collision.cpp" />
     <None Include="pixelShaderMultitextura.ps" />
     <None Include="vertexShader.vs" />
   </ItemGroup>

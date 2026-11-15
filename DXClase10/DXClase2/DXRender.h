@@ -12,6 +12,7 @@
 #include "Light.h"
 #include "MeshPrimitives.h"
 #include "SunLight.h"
+#include "InteractionPrompt.h"
 
 class DXRender
 {
@@ -43,6 +44,7 @@ private:
 	TerrainSettings terrainSettings;
 	SunLight sun;
 	DayNightCycle dayNight;
+	InteractionPrompt interactionPrompt;
 	bool fastForwardTime;
 	int lastClockMinute;
 	MPrimitives *casa;
@@ -77,6 +79,8 @@ private:
 	bool cloudInteractionRequested;
 	bool perspectiveBeforeCloud;
 	int lastCloudHint;
+	D3DXVECTOR3 requestedMovement;
+	bool playerGrounded;
 
 	float rotPerFrame;
 	float sphereSpeed;
@@ -122,6 +126,8 @@ public:
 		ridingCloud = cloudInteractionRequested = false;
 		perspectiveBeforeCloud = true;
 		lastCloudHint = -1;
+		requestedMovement = D3DXVECTOR3(0,0,0);
+		playerGrounded = true;
 		camara = skyCamara = NULL;
 		gameWindow = NULL;
 		fastForwardTime = false;
@@ -252,10 +258,15 @@ public:
 			L"Texturas/corner_pipe.png", L"", ShaderDiffuse, true);
 		if (!pablito->IsModelLoaded() || !tree->IsModelLoaded() || !fence->IsModelLoaded()
 			|| !furnace->IsModelLoaded() || !pipe->IsModelLoaded() || !corner_pipe->IsModelLoaded()) return false;
+		// Pablito is the controlled capsule, not an obstacle made from his own mesh.
+		pablito->SetCollisionEnabled(false);
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		BoundingSphere2 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		BoundingSphere1->SetCollisionEnabled(false);
+		BoundingSphere2->SetCollisionEnabled(false);
 		if (!sun.Init(d3d11Device)) return false;
+		if (!interactionPrompt.Init(d3d11Device, d3d11DevCon, L"Texturas/Tecla-E.png")) return false;
 		BoundingSphereTranslation = D3DXVECTOR2(0, 0);
 		
 		return true;
@@ -328,6 +339,7 @@ public:
 		if (jumpDown && !jumpWasDown && !isJumping && !ridingCloud)
 		{
 			isJumping = true;
+			playerGrounded = false;
 			jumpVelocity = 5.0f;
 		}
 		jumpWasDown = jumpDown;
@@ -409,24 +421,13 @@ public:
 		const float distance = D3DXVec3Length(&movement);
 		if (distance > speed && distance > 0.0f)
 			movement *= speed / distance;
+		requestedMovement = movement;
 		if (ridingCloud)
 		{
-			cloudPosition += movement;
-			// Keep the entire platform on the heightmap, including after turning.
-			const float margin = D3DXVec3Length(&cloudSize) * 0.5f + 0.5f;
-			const float minX = terrainSettings.position.x + margin;
-			const float minZ = terrainSettings.position.z + margin;
-			const float maxX = terrainSettings.position.x + terrainSettings.width * terrainSettings.horizontalScale - margin;
-			const float maxZ = terrainSettings.position.z + terrainSettings.depth * terrainSettings.horizontalScale - margin;
-			cloudPosition.x = fmaxf(minX, fminf(maxX, cloudPosition.x));
-			cloudPosition.z = fmaxf(minZ, fminf(maxZ, cloudPosition.z));
-			if (distance > 0.00001f)
-				cloudYaw = atan2f(movement.x, movement.z);
 			playerYaw = cloudYaw;
 		}
 		else
 		{
-			playerPosition += movement;
 			if (!camara->IsThirdPerson())
 				playerYaw = camara->Yaw;
 			else if (distance > 0.00001f)
@@ -450,8 +451,11 @@ public:
 		const float dx = playerPosition.x - cloudPosition.x;
 		const float dz = playerPosition.z - cloudPosition.z;
 		const float top = cloudPosition.y + cloudSize.y * 0.5f;
-		return !ridingCloud && dx * dx + dz * dz <= 4.5f * 4.5f
-			&& fabsf(playerPosition.y - top) <= 3.0f;
+		if (ridingCloud || dx * dx + dz * dz > 4.5f * 4.5f
+			|| fabsf(playerPosition.y - top) > 3.0f) return false;
+		float hit;
+		return !SceneCollision::Raycast(playerPosition + D3DXVECTOR3(0,PlayerHeight()*0.7f,0),
+			cloudPosition + D3DXVECTOR3(0,cloudSize.y*0.5f,0),hit,cloudVehicleMesh->GetCollider());
 	}
 
 	void ToggleCloudVehicle()
@@ -459,10 +463,9 @@ public:
 		if (!camara) return;
 		if (ridingCloud)
 		{
-			// Leave the platform parked and put Pablito beside its right edge.
-			const D3DXVECTOR3 right(cosf(cloudYaw), 0, -sinf(cloudYaw));
-			playerPosition = cloudPosition + right * (cloudSize.x * 0.5f + 1.0f);
-			playerPosition.y = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
+			D3DXVECTOR3 landing;
+			if (!FindCloudExit(landing)) return;
+			playerPosition = landing;
 			ridingCloud = false;
 			if (camara->IsThirdPerson() != perspectiveBeforeCloud)
 				camara->TogglePerspective();
@@ -478,6 +481,7 @@ public:
 		}
 		isJumping = false;
 		jumpVelocity = jumpOffset = 0.0f;
+		playerGrounded = true;
 		lastCloudHint = -1;
 	}
 
@@ -505,6 +509,114 @@ public:
 			playerPosition = cloudPosition + D3DXVECTOR3(0, cloudSize.y * 0.5f, 0);
 	}
 
+	float PlayerHeight() const { return pablito->GetModelHeight()*pablitoScale; }
+	float PlayerRadius() const { return fmaxf(0.30f,fminf(0.65f,PlayerHeight()*0.18f)); }
+
+	float SupportHeight(const D3DXVECTOR3& feet,float above,float below,
+		const SceneCollision::MeshCollider* ignore=NULL) const
+	{
+		float support=terreno->getTerrainCollision(D3DXVECTOR2(feet.x,feet.z));
+		const D3DXVECTOR3 start=feet+D3DXVECTOR3(0,above,0),end=feet-D3DXVECTOR3(0,below,0);
+		float fraction;
+		if(SceneCollision::Raycast(start,end,fraction,ignore,NULL,true))
+			support=fmaxf(support,start.y+(end.y-start.y)*fraction);
+		return support;
+	}
+
+	bool FindCloudExit(D3DXVECTOR3& landing) const
+	{
+		const D3DXVECTOR3 directions[]={D3DXVECTOR3(1,0,0),D3DXVECTOR3(-1,0,0),
+			D3DXVECTOR3(0,0,-1),D3DXVECTOR3(0,0,1),D3DXVECTOR3(1,0,1),
+			D3DXVECTOR3(-1,0,1),D3DXVECTOR3(1,0,-1),D3DXVECTOR3(-1,0,-1)};
+		for(D3DXVECTOR3 direction:directions)
+		{
+			D3DXVec3Normalize(&direction,&direction);
+			const float distance=fabsf(direction.x)*cloudSize.x*0.5f+fabsf(direction.z)*cloudSize.z*0.5f+PlayerRadius()+0.5f;
+			D3DXVECTOR3 candidate=playerPosition+SceneCollision::RotateY(direction,cloudYaw)*distance;
+			candidate.y=SupportHeight(candidate,0.3f,10.0f,cloudVehicleMesh->GetCollider());
+			if(playerPosition.y-candidate.y>3.0f || candidate.y-playerPosition.y>0.35f) continue;
+			if(!SceneCollision::CapsuleFree(candidate,PlayerHeight(),PlayerRadius(),cloudVehicleMesh->GetCollider())) continue;
+			SceneCollision::Contacts contacts;
+			D3DXVECTOR3 arrived=SceneCollision::MoveCapsule(playerPosition,candidate-playerPosition,PlayerHeight(),
+				PlayerRadius(),contacts,cloudVehicleMesh->GetCollider());
+			if(SceneCollision::Length(arrived-candidate)>0.1f) continue;
+			landing=candidate;return true;
+		}
+		return false;
+	}
+
+	void MovePlayer(const D3DXVECTOR3& movement,float seconds)
+	{
+		const float radius=PlayerRadius(),height=PlayerHeight(),gravity=12.0f;
+		D3DXVECTOR3 displacement=movement;
+		displacement.y=jumpVelocity*seconds-0.5f*gravity*seconds*seconds;
+		jumpVelocity-=gravity*seconds;
+		const int steps=(std::max)(1,static_cast<int>(ceilf(SceneCollision::Length(displacement)/(radius*0.35f))));
+		D3DXVECTOR3 delta=displacement/static_cast<float>(steps);
+		bool grounded=playerGrounded;
+		for(int i=0;i<steps;++i)
+		{
+			const D3DXVECTOR3 previous=playerPosition;
+			D3DXVECTOR3 next=previous+delta;
+			const float support=SupportHeight(next,0.35f,0.40f);
+			if(grounded && delta.y<=0 && support>=previous.y-0.35f && support<=previous.y+0.35f)
+			{
+				D3DXVECTOR3 stepped(next.x,support,next.z);
+				if(SceneCollision::CapsuleFree(stepped,height,radius)) next=stepped;
+			}
+			SceneCollision::Contacts contacts=SceneCollision::ResolveCapsule(next,height,radius,previous);
+			const float terrainHeight=terreno->getTerrainCollision(D3DXVECTOR2(next.x,next.z));
+			if(next.y<terrainHeight) next.y=terrainHeight;
+			// A low ceiling plus terrain can leave no valid separation direction.
+			// Keep the last safe step rather than forcing the capsule through either.
+			if(!SceneCollision::CapsuleFree(next,height,radius)) next=previous;
+			const float floor=SupportHeight(next,0.04f,0.08f);
+			grounded=delta.y<=0 && (contacts.ground || fabsf(next.y-floor)<0.05f);
+			if(grounded) {jumpVelocity=0;delta.y=0;}
+			if(contacts.ceiling && delta.y>0) {jumpVelocity=0;delta.y=0;}
+			playerPosition=next;
+		}
+		playerGrounded=grounded;
+		isJumping=!grounded;
+		jumpOffset=fmaxf(0,playerPosition.y-terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x,playerPosition.z)));
+	}
+
+	void MoveCloud(const D3DXVECTOR3& movement)
+	{
+		const float length=SceneCollision::Length(movement);
+		float turn=length>0.00001f?atan2f(movement.x,movement.z)-cloudYaw:0;
+		while(turn>D3DX_PI) turn-=2*D3DX_PI;
+		while(turn< -D3DX_PI) turn+=2*D3DX_PI;
+		const int steps=(std::max)(1,static_cast<int>(ceilf(fmaxf(length/0.18f,fabsf(turn)/0.12f))));
+		const D3DXVECTOR3 delta=movement/static_cast<float>(steps);
+		const float margin=SceneCollision::Length(cloudSize)*0.5f+0.5f;
+		const D3DXVECTOR3 half(cloudSize.x*0.5f,(cloudSize.y+PlayerHeight())*0.5f,cloudSize.z*0.5f);
+		for(int i=0;i<steps;++i)
+		{
+			const D3DXVECTOR3 previous=cloudPosition;
+			const float oldYaw=cloudYaw;
+			cloudPosition+=delta;cloudYaw+=turn/steps;
+			cloudPosition.x=SceneCollision::Clamp(cloudPosition.x,terrainSettings.position.x+margin,
+				terrainSettings.position.x+terrainSettings.width*terrainSettings.horizontalScale-margin);
+			cloudPosition.z=SceneCollision::Clamp(cloudPosition.z,terrainSettings.position.z+margin,
+				terrainSettings.position.z+terrainSettings.depth*terrainSettings.horizontalScale-margin);
+			bool accepted=false;
+			for(int pass=0;pass<4;++pass)
+			{
+				UpdateCloudVehicle();
+				D3DXVECTOR3 center=cloudPosition+D3DXVECTOR3(0,PlayerHeight()*0.5f,0);
+				const D3DXVECTOR3 desired=center;
+				SceneCollision::Contacts hit=SceneCollision::ResolveBox(center,half,cloudYaw,
+					previous+D3DXVECTOR3(0,PlayerHeight()*0.5f,0),cloudVehicleMesh->GetCollider());
+				if(!hit.blocked) {accepted=true;break;}
+				if(fabsf(center.y-desired.y)>0.05f) break;
+				cloudPosition.x+=center.x-desired.x;cloudPosition.z+=center.z-desired.z;
+			}
+			if(!accepted) {cloudPosition=previous;cloudYaw=oldYaw;}
+		}
+		UpdateCloudVehicle();playerYaw=cloudYaw;
+	}
+
 	void ToggleDayNightPause()
 	{
 		dayNight.paused = !dayNight.paused;
@@ -528,17 +640,11 @@ public:
 
 	void ReleaseObjects()
 	{
+		interactionPrompt.Release();
 		sun.Release();
-		terreno->ReleaseModelResources();
-		delete terreno;
-		casa->ReleaseModelResources();
-		mesa->ReleaseModelResources();
-		pocion->ReleaseModelResources();
-		delete casa;
-		delete mesa;
-		delete pocion;
-		MPrimitives* additionalModels[] = { pablito, cloudVehicleMesh, tree, fence, furnace, pipe, corner_pipe };
-		for (MPrimitives* model : additionalModels)
+		MPrimitives* models[] = { terreno,casa,mesa,pocion,pablito,cloudVehicleMesh,tree,fence,
+			furnace,pipe,corner_pipe,cubo,esfera,toroide,cono,cilindro,billboard,skydomo,BoundingSphere1,BoundingSphere2 };
+		for (MPrimitives* model : models)
 		{
 			model->ReleaseModelResources();
 			delete model;
@@ -576,6 +682,7 @@ public:
 		terreno->UpdateScene(terrainWorld);
 		playerPosition.y = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
 		UpdateCloudVehicle();
+		UpdateImportedModels(); // Register final object transforms before the first input.
 		D3DXVECTOR3 Position = playerPosition;
 		D3DXVECTOR3 Target = Position + D3DXVECTOR3(0.0f, 0.0f, 1.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
@@ -644,13 +751,20 @@ public:
 		{
 			// Shorten the camera arm at hills, checking the whole path from the player.
 			const D3DXVECTOR3 arm = camara->Position - eyes;
+			float hit;
+			if(SceneCollision::Raycast(eyes,camara->Position,hit,cloudVehicleMesh->GetCollider()))
+			{
+				camara->Position=eyes+arm*fmaxf(0,hit-0.3f/fmaxf(0.001f,SceneCollision::Length(arm)));
+				camara->UpdateView();
+			}
+			const D3DXVECTOR3 safeArm=camara->Position-eyes;
 			const int samples = 48;
 			for (int i = 1; i <= samples; ++i)
 			{
-				const D3DXVECTOR3 probe = eyes + arm * (static_cast<float>(i) / samples);
+				const D3DXVECTOR3 probe = eyes + safeArm * (static_cast<float>(i) / samples);
 				if (probe.y < terreno->getTerrainCollision(D3DXVECTOR2(probe.x, probe.z)) + 0.4f)
 				{
-					camara->Position = eyes + arm * (static_cast<float>(i - 1) / samples);
+					camara->Position = eyes + safeArm * (static_cast<float>(i - 1) / samples);
 					camara->UpdateView();
 					break;
 				}
@@ -669,6 +783,7 @@ public:
 		if (frameSeconds > 0.05f)
 			frameSeconds = 0.05f;
 		// Input, player physics, model transforms and cameras use this same frame.
+		UpdateImportedModels();
 		DetectInput();
 		// The clock uses elapsed real time even when movement needs a capped step.
 		dayNight.Advance(elapsedSeconds * (fastForwardTime ? 30.0 : 1.0));
@@ -711,25 +826,8 @@ public:
 		D3DXMatrixTranslation(&terrMat, terrainSettings.position.x,
 			terrainSettings.position.y, terrainSettings.position.z);
 		terreno->UpdateScene(terrMat);
-		const float groundHeight = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
-
-		if (isJumping)
-		{
-			const float gravity = 12.0f; // Unidades por segundo al cuadrado.
-			jumpOffset += jumpVelocity * frameSeconds - 0.5f * gravity * frameSeconds * frameSeconds;
-			jumpVelocity -= gravity * frameSeconds;
-
-			if (jumpOffset <= 0.0f)
-			{
-				jumpOffset = 0.0f;
-				jumpVelocity = 0.0f;
-				isJumping = false;
-			}
-		}
-
-		UpdateCloudVehicle();
-		if (!ridingCloud)
-			playerPosition.y = groundHeight + jumpOffset;
+		if(ridingCloud) MoveCloud(requestedMovement);
+		else {MovePlayer(requestedMovement,frameSeconds);UpdateCloudVehicle();}
 		UpdatePlayerCamera();
 		UpdateImportedModels();
 		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
@@ -797,9 +895,9 @@ public:
 
 		BoundingSphere1->DrawScene(camara);
 		BoundingSphere2->DrawScene(camara);
-
-
-
+		// Future interactables can use this same renderer with their own anchor/range.
+		interactionPrompt.Draw(*camara, cloudPosition + D3DXVECTOR3(0, cloudSize.y*0.5f + 1.65f, 0),
+			CanMountCloudVehicle());
 		//Present the backbuffer to the screen
 		SwapChain->Present(0, 0);
 	}
