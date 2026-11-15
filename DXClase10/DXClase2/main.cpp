@@ -166,7 +166,6 @@ int messageloop(){
 			// run game code
 
 			dxrender->UpdateScene();
-			dxrender->DetectInput();
 			dxrender->DrawScene();
 
 		}
@@ -182,6 +181,13 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 	switch (msg)
 	{
 	case WM_KEYDOWN:
+		// Bit 30 marks auto-repeat: one camera change per physical C press.
+		if (wParam == 'C' && (lParam & (1L << 30)) == 0)
+			dxrender->ToggleCameraPerspective();
+		if (wParam == 'E' && (lParam & (1L << 30)) == 0)
+			dxrender->RequestCloudInteraction();
+		if (wParam == VK_F6 && (lParam & (1L << 30)) == 0)
+			dxrender->ToggleDayNightPause();
 		if (wParam == VK_ESCAPE){
 			DestroyWindow(hwnd);
 		}

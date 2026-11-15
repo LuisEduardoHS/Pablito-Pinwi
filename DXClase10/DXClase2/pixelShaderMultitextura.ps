@@ -1,15 +1,4 @@
-struct Light
-{
-	float3 direction;
-	float specularPower;
-	float4 ambient;
-	float4 diffuse;
-};
-
-cbuffer ConstantBufferPS
-{
-	Light light;
-};
+#include "SunLighting.hlsli"
 
 struct VS_OUTPUT
 {
@@ -21,30 +10,53 @@ struct VS_OUTPUT
 	float3 binormal : BINORMAL;
 	float4 vectPos : POSITION;
 	float maxHeight : HEIGHT;
+	float3 worldPosition : TEXCOORD1;
+	float2 terrainUV : TEXCOORD2;
+	float cameraDistance : TEXCOORD3;
 };
 
 Texture2D ObjTexture : register(t0);
 Texture2D ObjTexture2 : register(t1);
 Texture2D ObjTexture3 : register(t2);
-SamplerState ObjSamplerState;
+Texture2D TerrainPaths : register(t6);
+SamplerState ObjSamplerState : register(s0);
+SamplerState TerrainPathSampler : register(s3);
 
 float4 PS(VS_OUTPUT input) : SV_Target
 {
-    float3 grassColor = ObjTexture2.Sample(ObjSamplerState, input.TexCoord).rgb;
-    float3 sandColor = ObjTexture.Sample(ObjSamplerState, input.TexCoord).rgb;
-    float3 rockColor = ObjTexture3.Sample(ObjSamplerState, input.TexCoord).rgb;
+    float3 normal = normalize(input.normal);
+    float3 local = input.vectPos.xyz;
+    float3 control = TerrainPaths.Sample(TerrainPathSampler, input.terrainUV).rgb;
+    float3 grass = ObjTexture2.Sample(ObjSamplerState, local.xz / 8.5f).rgb;
+    float3 broadGrass = ObjTexture2.Sample(ObjSamplerState, local.zx / 23.0f).rgb;
+    grass = lerp(grass, broadGrass, 0.25f);
+    // Restrained texture contrast and broad color variation suit the character art.
+    grass = lerp(float3(0.29f, 0.46f, 0.15f), grass, 0.48f);
+    grass *= lerp(float3(0.83f, 0.92f, 0.80f), float3(1.12f, 1.08f, 0.90f), control.b);
+    float3 dirt = ObjTexture.Sample(ObjSamplerState, local.xz / 6.0f).rgb;
+    dirt = lerp(float3(0.65f, 0.46f, 0.25f), dirt, 0.32f);
 
-    float height = saturate(input.vectPos.y / max(input.maxHeight, 0.0001f));
-    // Fractions of the mesh's peak height. Larger intervals soften the changes.
-    const float sandStart = 0.45f;
-    const float sandEnd = 0.80f;
-    const float rockStart = 0.80f;
-    const float rockEnd = 1.00f;
-    float sandBlend = smoothstep(sandStart, sandEnd, height);
-    float rockBlend = smoothstep(rockStart, rockEnd, height);
+    // Triplanar rock avoids stretching a ground texture up tall cliff faces.
+    float3 weights = pow(abs(normal), 4.0f);
+    weights /= max(weights.x + weights.y + weights.z, 0.0001f);
+    float3 rock = ObjTexture3.Sample(ObjSamplerState, local.zy / 12.0f).rgb * weights.x;
+    rock += ObjTexture3.Sample(ObjSamplerState, local.xz / 12.0f).rgb * weights.y;
+    rock += ObjTexture3.Sample(ObjSamplerState, local.xy / 12.0f).rgb * weights.z;
+    rock = lerp(float3(0.52f, 0.45f, 0.36f), rock, 0.20f);
+    rock *= 0.95f + 0.05f * sin(local.y * 0.12f + sin(local.x * 0.02f + local.z * 0.01f));
+    float height = saturate(local.y / max(input.maxHeight, 0.0001f));
+    float cliff = smoothstep(0.20f, 0.48f, 1.0f - normal.y);
+    // Broad grassy summit shelves, with stone exposed mainly on the escarpments.
+    float highRock = smoothstep(0.52f, 0.88f, height) * 0.08f;
+    float3 color = lerp(grass, rock, max(cliff, highRock));
 
-    // Convex blends preserve the source colors without additive brightening.
-    float3 terrainColor = lerp(grassColor, sandColor, sandBlend);
-    terrainColor = lerp(terrainColor, rockColor, rockBlend);
-    return float4(terrainColor, 1.0f);
+    // Painted paths are independent of altitude and agree with the graded mesh.
+    float3 verge = lerp(grass, lerp(dirt, rock, 0.25f), 0.42f);
+    color = lerp(color, verge, control.g * (1.0f-control.r) * (1.0f-cliff));
+    color = lerp(color, dirt, control.r);
+    color = SunLitColor(color, normal, input.worldPosition);
+    float distance = input.cameraDistance;
+    float haze = (1.0f-exp(-max(distance-160.0f, 0.0f)*0.00065f));
+    float3 hazeColor = lerp(float3(0.025f, 0.04f, 0.065f), float3(0.59f, 0.71f, 0.76f), NightSky.x);
+    return float4(lerp(color, hazeColor, haze), 1.0f);
 }

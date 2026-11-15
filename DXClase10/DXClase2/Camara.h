@@ -3,6 +3,10 @@
 
 class Camara
 {
+private:
+	bool thirdPerson;
+	D3DXVECTOR3 lookDirection;
+
 public:
 	D3DXVECTOR3 Position;
 	D3DXVECTOR3 Target;
@@ -34,7 +38,7 @@ public:
 		//Set the Projection matrix
 		D3DXMatrixPerspectiveFovLH(&Projection, 
 			D3DXToRadian(45), (float)Width / Height, 
-			1.0f, 1500.0f);
+			0.1f, 2500.0f);
 
 		DefaultForward = D3DXVECTOR3(0.0f,0.0f,1.0f);
 		DefaultRight = D3DXVECTOR3(1.0f,0.0f,0.0f);
@@ -43,9 +47,15 @@ public:
 
 		Yaw = 0.0f;
 		Pitch = 0.0f;
+		thirdPerson = true;
+		lookDirection = DefaultForward;
 	}
 
-	void UpdateCamera(float moveBackForward, float moveLeftRight, float yaw, float pitch)
+	bool IsThirdPerson() const { return thirdPerson; }
+	void TogglePerspective() { thirdPerson = !thirdPerson; }
+
+	// Rotation and movement are independent of the camera's follow offset.
+	void UpdateRotation(float yaw, float pitch)
 	{
 		Yaw += yaw;
 		Pitch += pitch;
@@ -59,24 +69,28 @@ public:
 			Pitch = -pitchLimit;
 
 		D3DXMatrixRotationYawPitchRoll(&camRotationMatrix, Yaw, Pitch, 0);
-		D3DXVec3TransformCoord(&Target, &DefaultForward, &camRotationMatrix);
-		D3DXVec3Normalize(&Target, &Target);
+		D3DXVec3TransformNormal(&lookDirection, &DefaultForward, &camRotationMatrix);
+		D3DXVec3Normalize(&lookDirection, &lookDirection);
 
 		D3DXMATRIX RotateYTempMatrix;
 		D3DXMatrixRotationY(&RotateYTempMatrix, Yaw);
 
 		D3DXVec3TransformCoord(&Right, &DefaultRight, &RotateYTempMatrix);
-		D3DXVec3TransformCoord(&Up, &Up, &RotateYTempMatrix);
+		Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
 		D3DXVec3TransformCoord(&Forward, &DefaultForward, &RotateYTempMatrix);
+	}
 
-		Position += moveLeftRight*Right;
-		Position += moveBackForward*Forward;
+	void FollowPlayer(const D3DXVECTOR3& eyePosition, float followDistance)
+	{
+		Position = eyePosition;
+		if (thirdPerson)
+			Position -= lookDirection * followDistance;
+		UpdateView();
+	}
 
-		moveLeftRight = 0.0f;
-		moveBackForward = 0.0f;
-
-		Target = Position + Target;
-
+	void UpdateView()
+	{
+		Target = Position + lookDirection;
 		D3DXMatrixLookAtLH(&View, &Position, &Target, &Up);
 	}
 

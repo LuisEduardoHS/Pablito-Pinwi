@@ -1,58 +1,65 @@
-# Capturas del segundo avance: integración actualizada de main
+# Guía actualizada de capturas del segundo avance
 
-Se integró el commit remoto `50b86e5` (Modelooos) con el trabajo local de terreno,
-texturas, controles y modelos. Esta guía corresponde al código final de esa integración.
-Las líneas pueden cambiar cuando se editen los archivos.
+En Visual Studio abre el archivo indicado y usa Ctrl+G para ir a la línea inicial.
+Muestra el intervalo completo, el nombre del archivo y los números de línea.
+Estos bloques ya existen en el proyecto; no necesitas pegarlos.
+El ciclo dura 5 minutos y usa las texturas de luna y estrellas entregadas;
+los controles F6/F7 y los ajustes están en `DXClase10/DXClase2/DIA_NOCHE.md`.
 
-La escena tiene nueve modelos importados distintos: casa, mesa, poción, Pablito,
-árbol, cerca, horno, tubo y codo. Casa, mesa y poción conservan los archivos locales
-convertidos desde los OBJ originales; los seis adicionales provienen de main.
-Pablito conserva la textura provisional `escudo.jpg` del commit remoto, que no
-incluye una textura propia para él. No se añadió el círculo de interfaz eliminado.
+La escena contiene nueve modelos distintos: casa, mesa, poción, Pablito, árbol,
+cerca, horno, tubo y codo. Pablito tiene su atlas propio `pablito_diffuse.png` y
+UV separadas en `Models/pablitopinwi_textured.txt`. El cielo usa un shader propio
+sin iluminación de superficies. El terreno mezcla pasto, tierra y roca y ahora
+incluye iluminación direccional y sombras del ciclo solar y lunar.
 
-## Tabla para preparar las capturas
+## Tabla de código
 
-En Visual Studio abre el archivo y usa Ctrl+G para ir a la línea inicial.
-Muestra el intervalo completo, la pestaña del archivo y los números de línea.
-Para instrucciones largas, activa el ajuste de línea.
-
-| Página de referencia | Evidencia | Archivo | Líneas actuales |
+| Página de referencia | Parte | Archivo | Líneas |
 | --- | --- | --- | --- |
-| 1 | Portada | Sin código | Nombre del juego y equipo |
-| 2 | Declaración del terreno | DXRender.h | 39–41 |
-| 2 | Parámetros físicos del terreno | DXRender.h | 77–82 |
-| 2 | Heightmap y texturas utilizados | DXRender.h | 184–186 |
-| 2 | Transformación del terreno | DXRender.h | 490–493 |
-| 2 | Dibujo del terreno | DXRender.h | 558 |
-| 2, extra | Mezcla por altura de pasto, tierra y roca | pixelShaderMultitextura.ps | 31–50 |
-| 3 | Imágenes de las tres texturas y el heightmap | Texturas/ | Ver lista abajo |
-| 4 | Terreno funcionando | Juego en ejecución | Mostrar ladera y montaña |
-| 5 | Creación del nuevo cielo | DXRender.h | 183 |
-| 5 | Orientación del skydomo | DXRender.h | 485–487 |
-| 5 | Dibujo del cielo | DXRender.h | 559 |
-| 6 | Cielo funcionando | Juego en ejecución | Mirar al horizonte y al cielo |
-| 7 | Declaración de modelos y escalas | DXRender.h | 42–54 y 83–85 |
-| 7 | Carga de modelos y texturas | DXRender.h | 188–211 |
-| 8 | Helper de escala, rotación y traslación | DXRender.h | 406–414 |
-| 8 | Colocación de casa, mesa y poción | DXRender.h | 417–436 |
-| 8 | Posiciones y escalas de los modelos nuevos | DXRender.h | 438–443 |
-| 9 | Dibujo de los nueve modelos | DXRender.h | 548–556 |
-| 10–12 | Modelos visibles e individuales | Juego en ejecución | Nueve modelos disponibles; falta uno para acreditar diez |
-| 13 | Movimiento con WASD | DXRender.h | 284–299 |
-| 13 | Mouse y actualización de cámara | DXRender.h | 337–349 |
-| 13, extra | Correr y saltar | DXRender.h | 262–274 |
-| 14 | Detección del mando | DXRender.h | 258–260 |
-| 14 | Sticks, zona muerta y movimiento | DXRender.h | 317–335 |
-| 14 | Aplicación a la cámara | DXRender.h | 348–349 |
-| 15 | Video propio utilizando el mando | Sin código | Grabar la respuesta real del juego |
+| 2 | Declaración del terreno | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:41) | 41–43 |
+| 2 | Dimensiones, altura y posición | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:87) | 87–92 |
+| 2 | Carga del heightmap y texturas | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:202) | 202–204 |
+| 2 | Transformación del terreno | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:589) | 589–591 |
+| 2 | Mezcla por altura y aplicación de sombras | [pixelShaderMultitextura.ps](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/pixelShaderMultitextura.ps:21) | 21–41 |
+| 5 | Creación del cielo | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:201) | 201–201 |
+| 5 | Orientación del cielo | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:584) | 584–586 |
+| 5 | Cielo sin sombreado por luz | [pixelShaderSky.ps](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/pixelShaderSky.ps:2) | 2–65 |
+| 7 | Declaración de modelos y escalas | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:48) | 48–60 |
+| 7 | Escalas individuales | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:93) | 93–95 |
+| 7 | Carga de los nueve modelos | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:207) | 207–229 |
+| 8 | SRT y apoyo de modelos en el terreno | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:473) | 473–480 |
+| 8 | Ubicación de casa, mesa, poción y modelos nuevos | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:483) | 483–514 |
+| 9 | Dibujo de los nueve modelos | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:658) | 658–668 |
+| 2 / extra | Lista de modelos que proyectan sombra | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:634) | 634–636 |
+| 2 / extra | Configuración y proyección del sol | [SunLight.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/SunLight.h:58) | 58–111 |
+| 2 / extra | Filtrado y bordes suaves de sombras | [SunLighting.hlsli](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/SunLighting.hlsli:29) | 29–47 |
+| 2 / extra | Restauración de escena y enlace del sol | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:640) | 640–641 |
+| 13 | Movimiento WASD | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:314) | 314–329 |
+| 13 | Mouse y cámara | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:369) | 369–387 |
+| 13 | Correr y saltar | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:293) | 293–304 |
+| 14 | Detección del mando | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:278) | 278–281 |
+| 14 | Sticks y zona muerta | [DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:348) | 348–365 |
 
-## Código para las capturas
+## Capturas durante la ejecución
 
-Los siguientes bloques ya están implementados: no necesitas pegarlos.
+| Página | Qué mostrar |
+| --- | --- |
+| 1 | Portada con el juego, materia y equipo |
+| 3 | Pasto `Meshpart1_diff.png`, tierra `dirt_diff.png`, roca `rock.jpg` y `PablitoPinwi_Heightmap_256.bmp` de Texturas/ |
+| 4 | Terreno con las distintas elevaciones y sombras bajo los modelos |
+| 6 | Horizonte y cielo; recurso `Texturas/skybox.png` sobre una esfera |
+| 10–12 | Modelos individuales dentro del juego; hay nueve, falta uno para acreditar diez distintos |
+| 15 | Video propio usando teclado o mando y mostrando la respuesta del juego |
 
-### Terreno: declaración
+Las sombras usan un mapa de profundidad desde el sol y reproducen las siluetas
+de los modelos sobre terreno y objetos. La configuración del sol y la luna se explica
+en `DXClase10/DXClase2/SOL.md` y `DXClase10/DXClase2/SOMBRAS.md`.
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:39), líneas **39–41**.
+## Código completo para las capturas
+
+### Declaración del terreno
+
+DXRender.h, líneas 41–43.
 
 ```cpp
 MPrimitives *skydomo;
@@ -60,9 +67,9 @@ MPrimitives *terreno;
 TerrainSettings terrainSettings;
 ```
 
-### Terreno: dimensiones y altura
+### Dimensiones, altura y posición
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:77), líneas **77–82**.
+DXRender.h, líneas 87–92.
 
 ```cpp
 terrainSettings.width = 255.0f;
@@ -73,9 +80,9 @@ terrainSettings.horizontalScale = 3.0f;
 terrainSettings.position = D3DXVECTOR3(0, 0, 0);
 ```
 
-### Terreno: carga
+### Carga del heightmap y texturas
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:184), líneas **184–186**.
+DXRender.h, líneas 202–204.
 
 ```cpp
 terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/dirt_diff.png", L"Texturas/Meshpart1_diff.png", "Texturas/PablitoPinwi_Heightmap_256.bmp", ShaderMultitextura);
@@ -83,31 +90,21 @@ terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/
 if (!terreno->IsTerrainLoaded()) return false;
 ```
 
-### Terreno: posición
+### Transformación del terreno
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:490), líneas **490–493**.
+DXRender.h, líneas 589–591.
 
 ```cpp
 D3DXMatrixTranslation(&terrMat, terrainSettings.position.x,
 	terrainSettings.position.y, terrainSettings.position.z);
 terreno->UpdateScene(terrMat);
-UpdateImportedModels();
 ```
 
-### Terreno y cielo: dibujo
+### Mezcla por altura y aplicación de sombras
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:558), líneas **558–559**.
+pixelShaderMultitextura.ps, líneas 21–41.
 
 ```cpp
-terreno->DrawScene(camara);
-skydomo->DrawScene(skyCamara);
-```
-
-### Terreno: mezcla por altura
-
-[pixelShaderMultitextura.ps](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/pixelShaderMultitextura.ps:31), líneas **31–50**.
-
-```hlsl
 float4 PS(VS_OUTPUT input) : SV_Target
 {
     float3 grassColor = ObjTexture2.Sample(ObjSamplerState, input.TexCoord).rgb;
@@ -126,21 +123,22 @@ float4 PS(VS_OUTPUT input) : SV_Target
     // Convex blends preserve the source colors without additive brightening.
     float3 terrainColor = lerp(grassColor, sandColor, sandBlend);
     terrainColor = lerp(terrainColor, rockColor, rockBlend);
+    terrainColor = SunLitColor(terrainColor, input.normal, input.worldPosition);
     return float4(terrainColor, 1.0f);
 }
 ```
 
-### Cielo: textura nueva
+### Creación del cielo
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:183), líneas **183–183**.
+DXRender.h, líneas 201–201.
 
 ```cpp
-skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/skybox.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/skybox.png", L"", ShaderSky);
 ```
 
-### Cielo: orientación
+### Orientación del cielo
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:485), líneas **485–487**.
+DXRender.h, líneas 584–586.
 
 ```cpp
 D3DXMATRIX skyRotMat, terrMat;
@@ -148,9 +146,81 @@ D3DXMatrixRotationX(&skyRotMat, D3DXToRadian(-90));
 skydomo->UpdateScene(skyRotMat);
 ```
 
-### Modelos: declaraciones y escalas
+### Cielo sin sombreado por luz
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:42), líneas **42–54**.
+pixelShaderSky.ps, líneas 2–65.
+
+```cpp
+// The sky is a background image: its brightness must not depend on sphere normals.
+#include "SunLighting.hlsli"
+struct VS_OUTPUT
+{
+    float4 Pos : SV_POSITION;
+    float2 TexCoord : TEXTURE;
+    float3 normal : NORMAL;
+    float3 viewDirection : COORDS;
+    float3 tangent : TANGENT;
+    float3 binormal : BINORMAL;
+    float4 vectPos : POSITION;
+    float maxHeight : HEIGHT;
+    float3 worldPosition : TEXCOORD1;
+};
+
+Texture2D SkyTexture : register(t0);
+Texture2D StarsTexture : register(t4);
+Texture2D MoonTexture : register(t5);
+SamplerState SkySampler : register(s0);
+SamplerState CelestialSampler : register(s2);
+
+float4 PS(VS_OUTPUT input) : SV_Target
+{
+    float3 direction = normalize(input.worldPosition);
+    float3 daytime = SkyTexture.Sample(SkySampler, input.TexCoord).rgb;
+    float aboveHorizon = smoothstep(-0.025f, 0.04f, direction.y);
+    float horizon = pow(saturate(1.0f - abs(direction.y)), 6.0f);
+    float3 night = lerp(float3(0.025f, 0.040f, 0.080f), float3(0.004f, 0.009f, 0.025f),
+        pow(saturate(direction.y), 0.35f));
+    daytime *= lerp(float3(1, 1, 1), float3(1.15f, 0.65f, 0.42f), NightSky.z * 0.65f);
+    float3 sky = lerp(night, daytime, NightSky.x);
+    float3 sunsetDirection = normalize(float3(SunDirection.x, 0.08f, SunDirection.z));
+    float sunsetFacing = pow(saturate(dot(direction, sunsetDirection)), 4.0f);
+    sky += float3(0.65f, 0.14f, 0.025f) * NightSky.z * horizon * (0.25f + 0.75f * sunsetFacing);
+
+    // The provided 2:1 panorama wraps in longitude and clamps at the poles.
+    float longitude = atan2(direction.z, direction.x) + NightSky.w;
+    float2 starsUV = float2(longitude / 6.283185307f + 0.5f,
+        acos(clamp(direction.y, -1.0f, 1.0f)) / 3.141592654f);
+    float2 starsDx = ddx(starsUV), starsDy = ddy(starsUV);
+    starsDx.x -= round(starsDx.x);
+    starsDy.x -= round(starsDy.x);
+    float3 stars = StarsTexture.SampleGrad(CelestialSampler, starsUV, starsDx, starsDy).rgb;
+    sky += stars * MoonUp.w * NightSky.y * aboveHorizon;
+
+    float cosine = dot(direction, SunDirection.xyz);
+    float disk = smoothstep(SunSky.y, SunSky.x, cosine) * SunColor.w * aboveHorizon;
+    float halo = pow(saturate(cosine), SunSky.z) * SunSky.w * SunColor.w * aboveHorizon;
+    sky += SunColor.rgb * halo;
+    sky = lerp(sky, SunColor.rgb, disk);
+
+    // Project the moon as a circular sky billboard; the black PNG corners never
+    // cover a rectangle of sky. Its texture remains the original supplied file.
+    float moonFacing = dot(direction, MoonDirection.xyz);
+    float2 moonLocal = float2(dot(direction, MoonRight.xyz), -dot(direction, MoonUp.xyz))
+        / max(moonFacing, 0.001f) / max(MoonRight.w, 0.001f);
+    float radius = length(moonLocal);
+    float moonMask = (1.0f - smoothstep(0.975f, 1.0f, radius))
+        * step(0.0f, moonFacing) * MoonDirection.w * aboveHorizon;
+    float3 moonColor = MoonTexture.Sample(CelestialSampler, moonLocal * 0.5f + 0.5f).rgb;
+    sky += float3(0.035f, 0.045f, 0.075f) * pow(saturate(moonFacing), 512.0f)
+        * MoonDirection.w * aboveHorizon;
+    sky = lerp(sky, saturate(moonColor * float3(1.10f, 1.18f, 1.30f)), moonMask);
+    return float4(sky, 1.0f);
+}
+```
+
+### Declaración de modelos y escalas
+
+DXRender.h, líneas 48–60.
 
 ```cpp
 MPrimitives *casa;
@@ -168,9 +238,9 @@ float pablitoScale, casaScale, pocionScale, mesaScale;
 float treeScale, fenceScale, furnaceScale, pipeScale, cornerPipeScale;
 ```
 
-### Modelos: valores de escala
+### Escalas individuales
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:83), líneas **83–85**.
+DXRender.h, líneas 93–95.
 
 ```cpp
 casaScale = mesaScale = pocionScale = 4.0f;
@@ -178,9 +248,9 @@ pablitoScale = treeScale = fenceScale = furnaceScale = 1.0f;
 pipeScale = cornerPipeScale = 1.0f;
 ```
 
-### Modelos: archivos y texturas
+### Carga de los nueve modelos
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:188), líneas **188–211**.
+DXRender.h, líneas 207–229.
 
 ```cpp
 // Three imported OBJ meshes, converted to the template's text format.
@@ -193,8 +263,8 @@ pocion = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Pocion.t
 if (!casa->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
 
 // Additional models from origin/main. Recenter their exported origins at the base.
-pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi.txt",
-	L"Texturas/escudo.jpg", L"", ShaderDiffuse, true);
+pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi_textured.txt",
+	L"Texturas/pablito_diffuse.png", L"", ShaderDiffuse, true);
 tree = new MPrimitives(d3d11Device, d3d11DevCon, "Models/tree.txt",
 	L"Texturas/tree.png", L"", ShaderDiffuse, true);
 fence = new MPrimitives(d3d11Device, d3d11DevCon, "Models/fence.txt",
@@ -209,12 +279,11 @@ if (!pablito->IsModelLoaded() || !tree->IsModelLoaded() || !fence->IsModelLoaded
 	|| !furnace->IsModelLoaded() || !pipe->IsModelLoaded() || !corner_pipe->IsModelLoaded()) return false;
 ```
 
-### Modelos: helper SRT sobre el terreno
+### SRT y apoyo de modelos en el terreno
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:406), líneas **406–414**.
+DXRender.h, líneas 473–480.
 
 ```cpp
-// Centered model base rests on the terrain; yaw is in degrees.
 void PlaceModel(MPrimitives* model, float x, float z, float size, float yaw = 0.0f)
 {
 	D3DXMATRIX scaling, rotation, translation;
@@ -225,9 +294,9 @@ void PlaceModel(MPrimitives* model, float x, float z, float size, float yaw = 0.
 }
 ```
 
-### Modelos: transformaciones y colocación
+### Ubicación de casa, mesa, poción y modelos nuevos
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:417), líneas **417–444**.
+DXRender.h, líneas 483–514.
 
 ```cpp
 void UpdateImportedModels()
@@ -251,7 +320,11 @@ void UpdateImportedModels()
 		tableY + mesa->GetModelHeight() * mesaScale, tableXZ.y);
 	pocion->UpdateScene(scaling * translation);
 
-	PlaceModel(pablito, 378.0f, 399.0f, pablitoScale, 180.0f);
+	// The exported mesh faces +X. Rotate it to the player's horizontal heading.
+	D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
+	D3DXMatrixRotationY(&rotation, playerYaw - D3DX_PI * 0.5f);
+	D3DXMatrixTranslation(&translation, playerPosition.x, playerPosition.y, playerPosition.z);
+	pablito->UpdateScene(scaling * rotation * translation);
 	PlaceModel(tree, 360.0f, 438.0f, treeScale);
 	PlaceModel(fence, 403.0f, 427.0f, fenceScale);
 	PlaceModel(furnace, 394.0f, 412.0f, furnaceScale);
@@ -260,15 +333,16 @@ void UpdateImportedModels()
 }
 ```
 
-### Modelos: dibujo
+### Dibujo de los nueve modelos
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:548), líneas **548–556**.
+DXRender.h, líneas 658–668.
 
 ```cpp
 casa->DrawScene(camara);
 mesa->DrawScene(camara);
 pocion->DrawScene(camara);
-pablito->DrawScene(camara);
+if (camara->IsThirdPerson())
+	pablito->DrawScene(camara);
 tree->DrawScene(camara);
 fence->DrawScene(camara);
 furnace->DrawScene(camara);
@@ -276,9 +350,115 @@ pipe->DrawScene(camara);
 corner_pipe->DrawScene(camara);
 ```
 
-### Teclado: WASD
+### Lista de modelos que proyectan sombra
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:284), líneas **284–299**.
+DXRender.h, líneas 634–636.
+
+```cpp
+MPrimitives* shadowCasters[] = { terreno, casa, mesa, pocion, pablito, tree,
+	fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,
+	BoundingSphere1, BoundingSphere2 };
+```
+
+### Configuración y proyección del sol
+
+SunLight.h, líneas 58–111.
+
+```cpp
+    void Update(ID3D11DeviceContext* context, const D3DXVECTOR3& focus)
+    {
+        D3DXVECTOR3 toSun = dynamicSky ? skyState.lightDirection : directionToSun;
+        if (D3DXVec3LengthSq(&toSun) < 0.000001f) toSun = D3DXVECTOR3(0, 1, 0);
+        D3DXVec3Normalize(&toSun, &toSun);
+        // The active light is the sun by day and the moon by night.
+        light.direction = toSun;
+        light.ambient = D3DXVECTOR4(ambient.x, ambient.y, ambient.z, 1);
+        light.diffuse = D3DXVECTOR4(color.x * intensity, color.y * intensity, color.z * intensity, 1);
+
+        const float coverage = shadowCoverage > 1.0f ? shadowCoverage : 1.0f;
+        const float depth = shadowDepth > 10.0f ? shadowDepth : 10.0f;
+        D3DXVECTOR3 up = fabsf(toSun.y) > 0.98f ? D3DXVECTOR3(0, 0, 1) : D3DXVECTOR3(0, 1, 0);
+        const D3DXVECTOR3 origin(0, 0, 0);
+        D3DXVECTOR3 eye = toSun * (depth * 0.5f);
+        D3DXMATRIX basis, inverseBasis, view, projection;
+        D3DXMatrixLookAtLH(&basis, &eye, &origin, &up);
+        D3DXMatrixInverse(&inverseBasis, NULL, &basis);
+        D3DXVECTOR3 snapped;
+        D3DXVec3TransformCoord(&snapped, &focus, &basis);
+        const float texelWorld = coverage / ShadowResolution;
+        snapped.x = floorf(snapped.x / texelWorld + 0.5f) * texelWorld;
+        snapped.y = floorf(snapped.y / texelWorld + 0.5f) * texelWorld;
+        D3DXVec3TransformCoord(&snapped, &snapped, &inverseBasis);
+        eye = snapped + toSun * (depth * 0.5f);
+        D3DXMatrixLookAtLH(&view, &eye, &snapped, &up);
+        D3DXMatrixOrthoLH(&projection, coverage, coverage, 0.1f, depth);
+        viewProjection = view * projection;
+        D3DXMatrixTranspose(&data.viewProjection, &viewProjection);
+        D3DXVECTOR3 solarDirection = directionToSun;
+        if (D3DXVec3LengthSq(&solarDirection) < 0.000001f) solarDirection = toSun;
+        D3DXVec3Normalize(&solarDirection, &solarDirection);
+        data.direction = D3DXVECTOR4(solarDirection.x, solarDirection.y, solarDirection.z, 0);
+        data.color = dynamicSky ? D3DXVECTOR4(skyState.sunDiskColor.x, skyState.sunDiskColor.y,
+            skyState.sunDiskColor.z, skyState.sunVisibility) : D3DXVECTOR4(color.x, color.y, color.z, 1);
+        // texel size, receiver depth bias, normal offset (world units), shadow strength
+        data.shadow = D3DXVECTOR4(1.0f / ShadowResolution, 0.00001f, 0.035f,
+            shadowStrength < 0 ? 0 : (shadowStrength > 1 ? 1 : shadowStrength));
+        const float disk = D3DXToRadian(diskRadiusDegrees);
+        data.sky = D3DXVECTOR4(cosf(disk), cosf(disk * 1.25f), 256.0f, 0.18f);
+        const D3DXVECTOR3 moon = dynamicSky ? skyState.moonDirection : -solarDirection;
+        const D3DXVECTOR3 worldUp = fabsf(moon.y) > 0.98f ? D3DXVECTOR3(0, 0, 1) : D3DXVECTOR3(0, 1, 0);
+        D3DXVECTOR3 right, moonUp;
+        D3DXVec3Cross(&right, &worldUp, &moon);
+        D3DXVec3Normalize(&right, &right);
+        D3DXVec3Cross(&moonUp, &moon, &right);
+        D3DXVec3Normalize(&moonUp, &moonUp);
+        data.moonDirection = D3DXVECTOR4(moon.x, moon.y, moon.z, dynamicSky ? skyState.moonVisibility : 0);
+        data.moonRight = D3DXVECTOR4(right.x, right.y, right.z, tanf(D3DXToRadian(moonRadiusDegrees)));
+        data.moonUp = D3DXVECTOR4(moonUp.x, moonUp.y, moonUp.z, starsExposure);
+        data.night = dynamicSky ? D3DXVECTOR4(skyState.daylight, skyState.starsVisibility,
+            skyState.twilight, skyState.starRotation) : D3DXVECTOR4(1, 0, 0, 0);
+        context->UpdateSubresource(sunBuffer, 0, NULL, &data, 0, 0);
+    }
+```
+
+### Filtrado y bordes suaves de sombras
+
+SunLighting.hlsli, líneas 29–47.
+
+```cpp
+float SunVisibility(float3 worldPosition, float3 normal)
+{
+    float facing = saturate(dot(normal, light.direction));
+    float3 receiver = worldPosition + normal * SunShadow.z * (1.0f - facing);
+    float4 projected = mul(float4(receiver, 1), SunViewProjection);
+    float3 lightPosition = projected.xyz / projected.w;
+    float edge = max(abs(lightPosition.x), abs(lightPosition.y));
+    if (edge >= 1.0f || lightPosition.z <= 0 || lightPosition.z >= 1) return 1;
+    float2 uv = lightPosition.xy * float2(0.5f, -0.5f) + 0.5f;
+    float visibility = 0;
+    [unroll] for (int y = -1; y <= 1; ++y)
+    [unroll] for (int x = -1; x <= 1; ++x)
+        visibility += SunShadowMap.SampleCmpLevelZero(SunShadowSampler,
+            uv + float2(x, y) * SunShadow.x, lightPosition.z - SunShadow.y);
+    visibility /= 9.0f;
+    // Fade out at the map's perimeter rather than showing a square boundary.
+    visibility = lerp(visibility, 1, smoothstep(0.85f, 0.98f, edge));
+    return lerp(1, visibility, SunShadow.w);
+}
+```
+
+### Restauración de escena y enlace del sol
+
+DXRender.h, líneas 640–641.
+
+```cpp
+sun.EndShadowPass(d3d11DevCon);
+sun.Bind(d3d11DevCon);
+```
+
+### Movimiento WASD
+
+DXRender.h, líneas 314–329.
 
 ```cpp
 if(keyboardState[DIK_A])
@@ -301,7 +481,7 @@ if(keyboardState[DIK_S])
 
 ### Mouse y cámara
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:337), líneas **337–349**.
+DXRender.h, líneas 369–387.
 
 ```cpp
 // DirectInput entrega desplazamientos relativos en cada lectura.
@@ -315,13 +495,26 @@ if(keyboardState[DIK_S])
 	mouseLastState = mouseCurrState;
 }
 
-camara->UpdateCamera(moveBackForward, moveLeftRight, camYaw, camPitch); 
-skyCamara->setSkyCamara(camara);
+camara->UpdateRotation(camYaw, camPitch);
+D3DXVECTOR3 movement = camara->Forward * moveBackForward + camara->Right * moveLeftRight;
+const float distance = D3DXVec3Length(&movement);
+if (distance > speed && distance > 0.0f)
+	movement *= speed / distance;
+playerPosition += movement;
+if (!camara->IsThirdPerson())
+	playerYaw = camara->Yaw;
+else if (distance > 0.00001f)
+	playerYaw = atan2f(movement.x, movement.z);
 ```
+
+Pablito es el personaje controlable. **C** o **D-pad ↑** alternan primera y tercera
+persona. `UpdatePlayerCamera()` sigue sus pies y el salto antes de dibujar.
+Los controles y ajustes se documentan en
+[CAMARAS.md](DXClase10/DXClase2/CAMARAS.md).
 
 ### Correr y saltar
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:262), líneas **262–274**.
+DXRender.h, líneas 293–304.
 
 ```cpp
 // Velocidades en unidades por segundo. Correr mientras se sostiene Shift o L3.
@@ -339,19 +532,20 @@ if (jumpDown && !jumpWasDown && !isJumping)
 jumpWasDown = jumpDown;
 ```
 
-### Gamepad: detección
+### Detección del mando
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:258), líneas **258–260**.
+DXRender.h, líneas 278–281.
 
 ```cpp
 XINPUT_STATE gamepadState = {};
-const bool gamepadConnected = XInputGetState(0, &gamepadState) == ERROR_SUCCESS;
+const bool gamepadConnected = GetForegroundWindow() == gameWindow
+	&& XInputGetState(0, &gamepadState) == ERROR_SUCCESS;
 const WORD buttons = gamepadConnected ? gamepadState.Gamepad.wButtons : 0;
 ```
 
-### Gamepad: sticks
+### Sticks y zona muerta
 
-[DXRender.h](D:/projects/GC_PLANTILLA_2/DXClase10/DXClase2/DXRender.h:317), líneas **317–335**.
+DXRender.h, líneas 348–365.
 
 ```cpp
 // Mando 1: stick izquierdo para moverse, derecho para mirar.
@@ -373,41 +567,15 @@ if (gamepadConnected)
 	if (thumbRY > deadzone || thumbRY < -deadzone)
 		camPitch -= (thumbRY / (thumbRY < 0 ? 32768.0f : 32767.0f)) * cameraSensitivity;
 }
+
 ```
 
-## Archivos de imagen para la página 3
+## Funciones internas
 
-Dentro de `DXClase10/DXClase2/Texturas/`:
-
-- Pasto: `Meshpart1_diff.png`.
-- Tierra: `dirt_diff.png`.
-- Roca: `rock.jpg`.
-- Heightmap: `PablitoPinwi_Heightmap_256.bmp`.
-- Cielo de la integración: `skybox.png`.
-
-## Carga interna y comprobaciones técnicas adicionales
-
-| Función | Archivo | Líneas |
+| Parte | Archivo | Líneas |
 | --- | --- | --- |
-| Repetición de texturas: 64 por eje | MeshPrimitives.h | 177 |
-| Lectura y validación del BMP | MeshPrimitives.h | 924–988 |
-| Vértices, índices y normales del terreno | MeshPrimitives.h | 990–1048 |
-| Lectura del modelo convertido y centrado opcional | MeshPrimitives.h | 1051–1101 |
-| Creación de buffers de modelos | MeshPrimitives.h | 1103–1148 |
-| Consulta de altura para cámara y modelos | MeshPrimitives.h | 1291–1314 |
-| Punto de inicio del jugador | DXRender.h | 395–403 |
-
-## Qué mostrar y qué queda pendiente
-
-- El recurso llamado `skybox.png` se dibuja sobre el skydomo esférico de la plantilla;
-  no es un cubemap ni un cielo con rotación animada.
-- Hay nueve modelos distintos cargados. Para replicar la evidencia de diez modelos
-  de la presentación todavía hace falta integrar un modelo adicional diferente.
-- Pablito usa una textura provisional. La geometría sí se carga, pero esa imagen
-  no es un material propio del personaje.
-- Para teclado y gamepad, una captura de código no sustituye una prueba física:
-  graba tu propio video para la página 15.
-- La integración se compiló y enlazó en Debug | Win32. La escena se revisó en
-  ejecución. Se verificaron buffers, índices, normales, tangentes y texturas de
-  los nueve modelos mediante Direct3D 11 WARP, y se repitieron las pruebas del
-  cargador del terreno. Release y el mando físico no se verificaron en esta revisión.
+| Carga BMP | MeshPrimitives.h | 929–993 |
+| Vértices e índices del terreno | MeshPrimitives.h | 995–1053 |
+| Carga de modelos | MeshPrimitives.h | 1056–1107 |
+| Buffers de modelos | MeshPrimitives.h | 1109–1154 |
+| Altura de terreno / colisión | MeshPrimitives.h | 1297–1320 |

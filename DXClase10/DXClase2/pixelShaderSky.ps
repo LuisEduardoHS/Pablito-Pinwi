@@ -1,0 +1,65 @@
+// The sky is a background image: its brightness must not depend on sphere normals.
+#include "SunLighting.hlsli"
+struct VS_OUTPUT
+{
+    float4 Pos : SV_POSITION;
+    float2 TexCoord : TEXTURE;
+    float3 normal : NORMAL;
+    float3 viewDirection : COORDS;
+    float3 tangent : TANGENT;
+    float3 binormal : BINORMAL;
+    float4 vectPos : POSITION;
+    float maxHeight : HEIGHT;
+    float3 worldPosition : TEXCOORD1;
+};
+
+Texture2D SkyTexture : register(t0);
+Texture2D StarsTexture : register(t4);
+Texture2D MoonTexture : register(t5);
+SamplerState SkySampler : register(s0);
+SamplerState CelestialSampler : register(s2);
+
+float4 PS(VS_OUTPUT input) : SV_Target
+{
+    float3 direction = normalize(input.worldPosition);
+    float3 daytime = SkyTexture.Sample(SkySampler, input.TexCoord).rgb;
+    float aboveHorizon = smoothstep(-0.025f, 0.04f, direction.y);
+    float horizon = pow(saturate(1.0f - abs(direction.y)), 6.0f);
+    float3 night = lerp(float3(0.025f, 0.040f, 0.080f), float3(0.004f, 0.009f, 0.025f),
+        pow(saturate(direction.y), 0.35f));
+    daytime *= lerp(float3(1, 1, 1), float3(1.15f, 0.65f, 0.42f), NightSky.z * 0.65f);
+    float3 sky = lerp(night, daytime, NightSky.x);
+    float3 sunsetDirection = normalize(float3(SunDirection.x, 0.08f, SunDirection.z));
+    float sunsetFacing = pow(saturate(dot(direction, sunsetDirection)), 4.0f);
+    sky += float3(0.65f, 0.14f, 0.025f) * NightSky.z * horizon * (0.25f + 0.75f * sunsetFacing);
+
+    // The provided 2:1 panorama wraps in longitude and clamps at the poles.
+    float longitude = atan2(direction.z, direction.x) + NightSky.w;
+    float2 starsUV = float2(longitude / 6.283185307f + 0.5f,
+        acos(clamp(direction.y, -1.0f, 1.0f)) / 3.141592654f);
+    float2 starsDx = ddx(starsUV), starsDy = ddy(starsUV);
+    starsDx.x -= round(starsDx.x);
+    starsDy.x -= round(starsDy.x);
+    float3 stars = StarsTexture.SampleGrad(CelestialSampler, starsUV, starsDx, starsDy).rgb;
+    sky += stars * MoonUp.w * NightSky.y * aboveHorizon;
+
+    float cosine = dot(direction, SunDirection.xyz);
+    float disk = smoothstep(SunSky.y, SunSky.x, cosine) * SunColor.w * aboveHorizon;
+    float halo = pow(saturate(cosine), SunSky.z) * SunSky.w * SunColor.w * aboveHorizon;
+    sky += SunColor.rgb * halo;
+    sky = lerp(sky, SunColor.rgb, disk);
+
+    // Project the moon as a circular sky billboard; the black PNG corners never
+    // cover a rectangle of sky. Its texture remains the original supplied file.
+    float moonFacing = dot(direction, MoonDirection.xyz);
+    float2 moonLocal = float2(dot(direction, MoonRight.xyz), -dot(direction, MoonUp.xyz))
+        / max(moonFacing, 0.001f) / max(MoonRight.w, 0.001f);
+    float radius = length(moonLocal);
+    float moonMask = (1.0f - smoothstep(0.975f, 1.0f, radius))
+        * step(0.0f, moonFacing) * MoonDirection.w * aboveHorizon;
+    float3 moonColor = MoonTexture.Sample(CelestialSampler, moonLocal * 0.5f + 0.5f).rgb;
+    sky += float3(0.035f, 0.045f, 0.075f) * pow(saturate(moonFacing), 512.0f)
+        * MoonDirection.w * aboveHorizon;
+    sky = lerp(sky, saturate(moonColor * float3(1.10f, 1.18f, 1.30f)), moonMask);
+    return float4(sky, 1.0f);
+}

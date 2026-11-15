@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include "ShaderCompiler.h"
 
 struct TerrainSettings
 {
@@ -13,9 +14,11 @@ struct TerrainSettings
 	float verticalScale;
 	float horizontalScale;
 	D3DXVECTOR3 position;
+	bool highPrecisionHeightmap; // BI_RGB32: gray high byte + alpha low byte.
+	std::wstring blendMapPath;
 
 	TerrainSettings() : width(255.0f), depth(255.0f), maxHeight(17.0f),
-		verticalScale(1.0f), horizontalScale(1.0f), position(0, 0, 0) {}
+		verticalScale(1.0f), horizontalScale(1.0f), position(0, 0, 0), highPrecisionHeightmap(false) {}
 };
 
 class MPrimitives {
@@ -37,6 +40,8 @@ private:
 	ID3D11ShaderResourceView* Texture2;
 	ID3D11ShaderResourceView* NormalTexture;
 	ID3D11SamplerState* TexSamplerState;
+	ID3D11ShaderResourceView* TerrainBlendMap = NULL;
+	ID3D11SamplerState* TerrainBlendSampler = NULL;
 
 	//Bitmap
 	ID3D11Texture2D* renderTargetTextureGUI;
@@ -72,6 +77,7 @@ private:
 		D3DXMATRIX World;
 		D3DXVECTOR3 CameraPos;
 		float MaxH;
+		D3DXVECTOR4 TerrainMapping;
 	} consBuff;
 
 	struct ConstantBufferPS
@@ -94,6 +100,7 @@ private:
 	bool terrainLoaded = false;
 	bool modelLoaded = false;
 	float modelHeight = 0.0f;
+	D3DXVECTOR3 modelSize = D3DXVECTOR3(0, 0, 0);
 
 	
 
@@ -179,6 +186,18 @@ public:
 		try
 		{
 			LoadHeightMap(heightMapFilename);
+			if (!settings.blendMapPath.empty())
+			{
+				if (FAILED(D3DX11CreateShaderResourceViewFromFile(device, settings.blendMapPath.c_str(),
+					NULL, NULL, &TerrainBlendMap, NULL)))
+					throw std::runtime_error("No se pudo cargar la mascara de caminos del terreno.");
+				D3D11_SAMPLER_DESC sampler = {};
+				sampler.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+				sampler.AddressU = sampler.AddressV = sampler.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+				sampler.MaxLOD = D3D11_FLOAT32_MAX;
+				if (FAILED(device->CreateSamplerState(&sampler, &TerrainBlendSampler)))
+					throw std::runtime_error("No se pudo crear el sampler de caminos.");
+			}
 			terrainLoaded = true;
 		}
 		catch (const std::exception& error)
@@ -209,8 +228,33 @@ public:
 
 	bool IsModelLoaded() const { return modelLoaded; }
 	float GetModelHeight() const { return modelHeight; }
+	D3DXVECTOR3 GetModelSize() const { return modelSize; }
 
-	// Only used to release imported models before shutting down the D3D device.
+	// A tiny GPU texture lets procedural placeholders use the normal lit material.
+	bool SetSolidColor(unsigned char red, unsigned char green, unsigned char blue)
+	{
+		const unsigned char pixel[] = { red, green, blue, 255 };
+		D3D11_TEXTURE2D_DESC desc = {};
+		desc.Width = desc.Height = desc.MipLevels = desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		D3D11_SUBRESOURCE_DATA data = {};
+		data.pSysMem = pixel;
+		data.SysMemPitch = sizeof(pixel);
+		ID3D11Texture2D* texture = NULL;
+		if (FAILED(d3d11Device->CreateTexture2D(&desc, &data, &texture))) return false;
+		ID3D11ShaderResourceView* view = NULL;
+		const HRESULT result = d3d11Device->CreateShaderResourceView(texture, NULL, &view);
+		texture->Release();
+		if (FAILED(result)) return false;
+		if (Texture) Texture->Release();
+		Texture = view;
+		return true;
+	}
+
+	// Release mesh and optional terrain material resources before the D3D device.
 	void ReleaseModelResources()
 	{
 		if (VertexBuffer) { VertexBuffer->Release(); VertexBuffer = NULL; }
@@ -226,6 +270,8 @@ public:
 		if (Texture2) { Texture2->Release(); Texture2 = NULL; }
 		if (NormalTexture) { NormalTexture->Release(); NormalTexture = NULL; }
 		if (TexSamplerState) { TexSamplerState->Release(); TexSamplerState = NULL; }
+		if (TerrainBlendMap) { TerrainBlendMap->Release(); TerrainBlendMap = NULL; }
+		if (TerrainBlendSampler) { TerrainBlendSampler->Release(); TerrainBlendSampler = NULL; }
 		modelLoaded = false;
 	}
 
@@ -254,6 +300,15 @@ public:
 	{
 		//Inicializacion de variables
 		D3DXMatrixIdentity(&World);
+		VertexBuffer = IndexBuffer = cbBuffer = cbBufferPS = NULL;
+		VS = NULL;
+		PS = NULL;
+		VS_Buffer = PS_Buffer = NULL;
+		vertLayout = NULL;
+		Texture = Texture2 = NormalTexture = NULL;
+		TexSamplerState = NULL;
+		ZeroMemory(&consBuff, sizeof(consBuff));
+		consBuff.MaxH = 1.0f;
 
 		this->d3d11Device = d3d11Device;
 		this->d3d11DevCon = d3d11DevCon;
@@ -281,6 +336,9 @@ public:
 		case ShaderGUI:
 			pixelShaderFile = L"pixelShaderGUI.ps";
 			break;
+		case ShaderSky:
+			pixelShaderFile = L"pixelShaderSky.ps";
+			break;
 		case ShaderMultitextura:
 			pixelShaderFile = L"pixelShaderMultitextura.ps";
 			break;
@@ -291,8 +349,8 @@ public:
 		
 
 		//Compile Shaders from shader file
-		D3DX11CompileFromFile(L"vertexShader.vs", 0, 0, "VS", "vs_4_0", 0, 0, 0, &VS_Buffer, 0, 0);
-		D3DX11CompileFromFile(pixelShaderFile, 0, 0, "PS", "ps_4_0", 0, 0, 0, &PS_Buffer, 0, 0);
+		if (!CompileSceneShader(L"vertexShader.vs", "VS", "vs_4_0", &VS_Buffer)
+			|| !CompileSceneShader(pixelShaderFile, "PS", "ps_4_0", &PS_Buffer)) return false;
 
 		//Create the Shader Objects
 		d3d11Device->CreateVertexShader(VS_Buffer->GetBufferPointer(),
@@ -920,7 +978,8 @@ public:
 
 	
 
-	// BMP BI_RGB, 24/32 bits. Image bottom edge maps to z=0, as in the template.
+	// BMP BI_RGB, 24/32 bits; optional 16-bit heights packed into gray + alpha.
+	// Image bottom edge maps to z=0, as in the template.
 	void LoadHeightMap(const char* filename)
 	{
 		const TerrainSettings& cfg = terrainSettings;
@@ -951,6 +1010,8 @@ public:
 			|| info.biHeight < -1024 || info.biHeight > 1024 || info.biHeight == 1 || info.biHeight == -1)
 			throw std::runtime_error("El heightmap debe medir entre 2 y 1024 pixeles por eje.");
 		tWidth = info.biWidth;
+		if (cfg.highPrecisionHeightmap && info.biBitCount != 32)
+			throw std::runtime_error("El heightmap de alta precision requiere BMP de 32 bits.");
 		tHeight = info.biHeight < 0 ? -info.biHeight : info.biHeight;
 		const size_t bytesPerPixel = info.biBitCount / 8;
 		const size_t rowStride = (tWidth * bytesPerPixel + 3) & ~size_t(3);
@@ -972,7 +1033,9 @@ public:
 			{
 				const unsigned char* pixel = &row[x * bytesPerPixel];
 				// Grayscale is preserved exactly; colored BMPs use luminance (BGR).
-				const float intensity = (0.2126f * pixel[2] + 0.7152f * pixel[1] + 0.0722f * pixel[0]) / 255.0f;
+				const float intensity = cfg.highPrecisionHeightmap
+					? (pixel[2] * 256.0f + pixel[3]) / 65535.0f
+					: (0.2126f * pixel[2] + 0.7152f * pixel[1] + 0.0722f * pixel[0]) / 255.0f;
 				SimpleVertex& v = terrainVertices[z * tWidth + x];
 				v.pos = D3DXVECTOR3(extentX * x / (tWidth - 1), intensity * peak,
 					extentZ * z / (tHeight - 1));
@@ -984,6 +1047,7 @@ public:
 		}
 		// The existing multitexture shader divides local height by MaxH.
 		consBuff.MaxH = maxY > 0.0f ? maxY : 1.0f;
+		consBuff.TerrainMapping = D3DXVECTOR4(1.0f / extentX, -1.0f / extentZ, 0, 0);
 		createTerrain();
 	}
 
@@ -1092,6 +1156,7 @@ public:
 		}
 		numVertex = numIndex = count;
 		modelHeight = maxY - minY;
+		modelSize = D3DXVECTOR3(high.x - low.x, modelHeight, high.z - low.z);
 		if (centerBase)
 		{
 			const D3DXVECTOR3 origin((low.x + high.x) * 0.5f, minY, (low.z + high.z) * 0.5f);
@@ -1210,8 +1275,25 @@ public:
 		this->World = World;
 	}
 
+	// SunLight owns the depth shaders/state; each mesh supplies its geometry/material.
+	void DrawShadow(const D3DXMATRIX& lightViewProjection)
+	{
+		const D3DXMATRIX worldLight = World * lightViewProjection;
+		D3DXMatrixTranspose(&consBuff.WorldViewProjection, &worldLight);
+		d3d11DevCon->UpdateSubresource(cbBuffer, 0, NULL, &consBuff, 0, 0);
+		d3d11DevCon->VSSetConstantBuffers(0, 1, &cbBuffer);
+		UINT stride = sizeof(SimpleVertex), offset = 0;
+		d3d11DevCon->IASetVertexBuffers(0, 1, &VertexBuffer, &stride, &offset);
+		d3d11DevCon->IASetIndexBuffer(IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
+		d3d11DevCon->PSSetShaderResources(0, 1, &Texture);
+		d3d11DevCon->PSSetSamplers(0, 1, &TexSamplerState);
+		d3d11DevCon->DrawIndexed(numIndex, 0, 0);
+	}
+
 	void DrawScene(Camara *camara)
 	{
+		d3d11DevCon->IASetInputLayout(vertLayout);
+		d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		if (faceToCam)
 		{
 			D3DXMATRIX rotMat;
@@ -1240,6 +1322,12 @@ public:
 
 		d3d11DevCon->PSSetShaderResources(2, 1, &Texture2);
 		d3d11DevCon->PSSetSamplers(0, 1, &TexSamplerState);
+		if (terrainLoaded)
+		{
+			// t3-t5 and s1-s2 belong to the sun, moon and stars.
+			d3d11DevCon->PSSetShaderResources(6, 1, &TerrainBlendMap);
+			d3d11DevCon->PSSetSamplers(3, 1, &TerrainBlendSampler);
+		}
 
 		consBuffPS.light = light;
 		d3d11DevCon->UpdateSubresource(cbBufferPS, 0, NULL, &consBuffPS, 0, 0);

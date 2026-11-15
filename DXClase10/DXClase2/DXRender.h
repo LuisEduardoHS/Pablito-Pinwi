@@ -3,6 +3,7 @@
 
 #include <Xinput.h>
 #include <chrono>
+#include <cwchar>
 #pragma comment(lib, "Xinput9_1_0.lib")
 
 #include "Constants.h"
@@ -10,6 +11,7 @@
 #include "Camara.h"
 #include "Light.h"
 #include "MeshPrimitives.h"
+#include "SunLight.h"
 
 class DXRender
 {
@@ -39,10 +41,15 @@ private:
 	MPrimitives *skydomo;
 	MPrimitives *terreno;
 	TerrainSettings terrainSettings;
+	SunLight sun;
+	DayNightCycle dayNight;
+	bool fastForwardTime;
+	int lastClockMinute;
 	MPrimitives *casa;
 	MPrimitives *mesa;
 	MPrimitives *pocion;
 	MPrimitives *pablito;
+	MPrimitives *cloudVehicleMesh;
 	MPrimitives *tree;
 	MPrimitives *fence;
 	MPrimitives *furnace;
@@ -57,6 +64,19 @@ private:
 
 	Camara *camara;
 	Camara *skyCamara;
+	HWND gameWindow;
+	D3DXVECTOR3 playerPosition; // Feet, independent of either camera mode.
+	float playerYaw;
+	bool cameraPadWasDown;
+	D3DXVECTOR3 cloudPosition; // Center of the vehicle; the rider stands on its top.
+	D3DXVECTOR3 cloudSize;
+	float cloudYaw;
+	float cloudHoverHeight;
+	float cloudSpeed;
+	bool ridingCloud;
+	bool cloudInteractionRequested;
+	bool perspectiveBeforeCloud;
+	int lastCloudHint;
 
 	float rotPerFrame;
 	float sphereSpeed;
@@ -74,12 +94,14 @@ public:
 	DXRender()
 	{
 		// Pablito Pinwi: edit these values before rebuilding.
-		terrainSettings.width = 255.0f;
-		terrainSettings.depth = 255.0f;
-		terrainSettings.maxHeight = 85.0f; // White pixel height in world units.
+		terrainSettings.width = 384.0f;
+		terrainSettings.depth = 384.0f;
+		terrainSettings.maxHeight = 360.0f; // Precision heightmap's full range.
 		terrainSettings.verticalScale = 1.0f;
 		terrainSettings.horizontalScale = 3.0f;
 		terrainSettings.position = D3DXVECTOR3(0, 0, 0);
+		terrainSettings.highPrecisionHeightmap = true;
+		terrainSettings.blendMapPath = L"Texturas/Pablito_Valley_Paths.png";
 		casaScale = mesaScale = pocionScale = 4.0f;
 		pablitoScale = treeScale = fenceScale = furnaceScale = 1.0f;
 		pipeScale = cornerPipeScale = 1.0f;
@@ -88,12 +110,30 @@ public:
 		jumpVelocity = 0.0f;
 		jumpOffset = 0.0f;
 		jumpWasDown = false;
+		cameraPadWasDown = false;
+		playerPosition = D3DXVECTOR3(384.0f, 0.0f, 380.0f);
+		playerYaw = 0.0f;
+		cloudVehicleMesh = NULL;
+		cloudPosition = D3DXVECTOR3(384.0f, 0.0f, 384.0f);
+		cloudSize = D3DXVECTOR3(4.0f, 0.6f, 5.0f);
+		cloudYaw = 0.0f;
+		cloudHoverHeight = 0.8f; // Clearance below the provisional gray platform.
+		cloudSpeed = 28.0f; // Walking: 8; running: 16 world units per second.
+		ridingCloud = cloudInteractionRequested = false;
+		perspectiveBeforeCloud = true;
+		lastCloudHint = -1;
+		camara = skyCamara = NULL;
+		gameWindow = NULL;
+		fastForwardTime = false;
+		lastClockMinute = -1;
+		DummyBoundyEvents = D3DXVECTOR2(0, 0);
 		frameSeconds = 0.0f;
 		lastFrameTime = std::chrono::steady_clock::now();
 	}
 
 	bool InitDevice(HWND hwnd, int Width, int Height)
 	{
+		gameWindow = hwnd;
 		//Describe our Buffer
 		DXGI_MODE_DESC bufferDesc;
 
@@ -180,10 +220,13 @@ public:
 		cono = new MPrimitives(d3d11Device, d3d11DevCon, 16, 0.0f, 1.0f, 2.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		billboard = new MPrimitives(d3d11Device, d3d11DevCon, 2.0f, 2.0f, L"Texturas/ave.png");
 		
-		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1000.0f, L"Texturas/skybox.png", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
-		terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/dirt_diff.png", L"Texturas/Meshpart1_diff.png", "Texturas/PablitoPinwi_Heightmap_256.bmp", ShaderMultitextura);
+		skydomo = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 2000.0f, L"Texturas/skybox.png", L"", ShaderSky);
+		terreno = new MPrimitives(d3d11Device, d3d11DevCon, terrainSettings, L"Texturas/dirt_diff.png", L"Texturas/Meshpart1_diff.png", "Texturas/Pablito_Valley_513.bmp", ShaderMultitextura);
 
 		if (!terreno->IsTerrainLoaded()) return false;
+		cloudVehicleMesh = new MPrimitives(d3d11Device, d3d11DevCon,
+			1.0f, L"", L"", ShaderDiffuse);
+		if (!cloudVehicleMesh->SetSolidColor(165, 165, 165)) return false;
 
 		// Three imported OBJ meshes, converted to the template's text format.
 		casa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/casa_pablo.txt",
@@ -195,8 +238,8 @@ public:
 		if (!casa->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
 
 		// Additional models from origin/main. Recenter their exported origins at the base.
-		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi.txt",
-			L"Texturas/escudo.jpg", L"", ShaderDiffuse, true);
+		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi_textured.txt",
+			L"Texturas/pablito_diffuse.png", L"", ShaderDiffuse, true);
 		tree = new MPrimitives(d3d11Device, d3d11DevCon, "Models/tree.txt",
 			L"Texturas/tree.png", L"", ShaderDiffuse, true);
 		fence = new MPrimitives(d3d11Device, d3d11DevCon, "Models/fence.txt",
@@ -212,6 +255,7 @@ public:
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		BoundingSphere2 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
+		if (!sun.Init(d3d11Device)) return false;
 		BoundingSphereTranslation = D3DXVECTOR2(0, 0);
 		
 		return true;
@@ -238,6 +282,7 @@ public:
 
 		DIMouse->SetDataFormat(&c_dfDIMouse);
 		DIMouse->SetCooperativeLevel(hwnd, DISCL_EXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
+		lastFrameTime = std::chrono::steady_clock::now();
 
 		return true;
 	}
@@ -256,17 +301,31 @@ public:
 		DIKeyboard->GetDeviceState(sizeof(keyboardState),(LPVOID)&keyboardState);
 
 		XINPUT_STATE gamepadState = {};
-		const bool gamepadConnected = XInputGetState(0, &gamepadState) == ERROR_SUCCESS;
+		const bool gamepadConnected = GetForegroundWindow() == gameWindow
+			&& XInputGetState(0, &gamepadState) == ERROR_SUCCESS;
 		const WORD buttons = gamepadConnected ? gamepadState.Gamepad.wButtons : 0;
+		fastForwardTime = (keyboardState[DIK_F7] & 0x80) != 0
+			|| (buttons & XINPUT_GAMEPAD_DPAD_RIGHT) != 0;
+
+		// Keyboard C is handled by WM_KEYDOWN so even short taps are received.
+		// The gamepad toggles on the press edge, ignoring a held D-pad Up.
+		const bool cameraPadDown = (buttons & XINPUT_GAMEPAD_DPAD_UP) != 0;
+		if (cameraPadDown && !cameraPadWasDown)
+			ToggleCameraPerspective();
+		cameraPadWasDown = cameraPadDown;
+		// WM_KEYDOWN queues one interaction per E press, without key auto-repeat.
+		if (cloudInteractionRequested && GetForegroundWindow() == gameWindow)
+			ToggleCloudVehicle();
+		cloudInteractionRequested = false;
 
 		// Velocidades en unidades por segundo. Correr mientras se sostiene Shift o L3.
 		const bool running = keyboardState[DIK_LSHIFT] || keyboardState[DIK_RSHIFT]
 			|| (buttons & XINPUT_GAMEPAD_LEFT_THUMB);
-		const float speed = (running ? 16.0f : 8.0f) * frameSeconds;
+		const float speed = (ridingCloud ? cloudSpeed : (running ? 16.0f : 8.0f)) * frameSeconds;
 
 		// Un salto por pulsacion: Espacio o boton A del mando.
 		const bool jumpDown = keyboardState[DIK_SPACE] || (buttons & XINPUT_GAMEPAD_A);
-		if (jumpDown && !jumpWasDown && !isJumping)
+		if (jumpDown && !jumpWasDown && !isJumping && !ridingCloud)
 		{
 			isJumping = true;
 			jumpVelocity = 5.0f;
@@ -345,19 +404,140 @@ public:
 			mouseLastState = mouseCurrState;
 		}
 
-		camara->UpdateCamera(moveBackForward, moveLeftRight, camYaw, camPitch); 
-		skyCamara->setSkyCamara(camara);
+		camara->UpdateRotation(camYaw, camPitch);
+		D3DXVECTOR3 movement = camara->Forward * moveBackForward + camara->Right * moveLeftRight;
+		const float distance = D3DXVec3Length(&movement);
+		if (distance > speed && distance > 0.0f)
+			movement *= speed / distance;
+		if (ridingCloud)
+		{
+			cloudPosition += movement;
+			// Keep the entire platform on the heightmap, including after turning.
+			const float margin = D3DXVec3Length(&cloudSize) * 0.5f + 0.5f;
+			const float minX = terrainSettings.position.x + margin;
+			const float minZ = terrainSettings.position.z + margin;
+			const float maxX = terrainSettings.position.x + terrainSettings.width * terrainSettings.horizontalScale - margin;
+			const float maxZ = terrainSettings.position.z + terrainSettings.depth * terrainSettings.horizontalScale - margin;
+			cloudPosition.x = fmaxf(minX, fminf(maxX, cloudPosition.x));
+			cloudPosition.z = fmaxf(minZ, fminf(maxZ, cloudPosition.z));
+			if (distance > 0.00001f)
+				cloudYaw = atan2f(movement.x, movement.z);
+			playerYaw = cloudYaw;
+		}
+		else
+		{
+			playerPosition += movement;
+			if (!camara->IsThirdPerson())
+				playerYaw = camara->Yaw;
+			else if (distance > 0.00001f)
+				playerYaw = atan2f(movement.x, movement.z);
+		}
+	}
+
+	void ToggleCameraPerspective()
+	{
+		if (camara && !ridingCloud)
+			camara->TogglePerspective();
+	}
+
+	void RequestCloudInteraction()
+	{
+		cloudInteractionRequested = true;
+	}
+
+	bool CanMountCloudVehicle() const
+	{
+		const float dx = playerPosition.x - cloudPosition.x;
+		const float dz = playerPosition.z - cloudPosition.z;
+		const float top = cloudPosition.y + cloudSize.y * 0.5f;
+		return !ridingCloud && dx * dx + dz * dz <= 4.5f * 4.5f
+			&& fabsf(playerPosition.y - top) <= 3.0f;
+	}
+
+	void ToggleCloudVehicle()
+	{
+		if (!camara) return;
+		if (ridingCloud)
+		{
+			// Leave the platform parked and put Pablito beside its right edge.
+			const D3DXVECTOR3 right(cosf(cloudYaw), 0, -sinf(cloudYaw));
+			playerPosition = cloudPosition + right * (cloudSize.x * 0.5f + 1.0f);
+			playerPosition.y = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
+			ridingCloud = false;
+			if (camara->IsThirdPerson() != perspectiveBeforeCloud)
+				camara->TogglePerspective();
+		}
+		else
+		{
+			if (!CanMountCloudVehicle()) return;
+			perspectiveBeforeCloud = camara->IsThirdPerson();
+			ridingCloud = true;
+			if (!camara->IsThirdPerson()) camara->TogglePerspective();
+			playerYaw = cloudYaw;
+			playerPosition = cloudPosition + D3DXVECTOR3(0, cloudSize.y * 0.5f, 0);
+		}
+		isJumping = false;
+		jumpVelocity = jumpOffset = 0.0f;
+		lastCloudHint = -1;
+	}
+
+	void UpdateCloudVehicle()
+	{
+		// Sample its footprint, so slopes do not bury the edges of the platform.
+		const float cosine = cosf(cloudYaw), sine = sinf(cloudYaw);
+		float floor = terreno->getTerrainCollision(D3DXVECTOR2(cloudPosition.x, cloudPosition.z));
+		for (int x = -1; x <= 1; ++x)
+			for (int z = -1; z <= 1; ++z)
+			{
+				const float localX = x * cloudSize.x * 0.5f;
+				const float localZ = z * cloudSize.z * 0.5f;
+				const D3DXVECTOR2 sample(cloudPosition.x + localX * cosine + localZ * sine,
+					cloudPosition.z - localX * sine + localZ * cosine);
+				floor = fmaxf(floor, terreno->getTerrainCollision(sample));
+			}
+		cloudPosition.y = floor + cloudHoverHeight + cloudSize.y * 0.5f;
+		D3DXMATRIX scaling, rotation, translation;
+		D3DXMatrixScaling(&scaling, cloudSize.x, cloudSize.y, cloudSize.z);
+		D3DXMatrixRotationY(&rotation, cloudYaw);
+		D3DXMatrixTranslation(&translation, cloudPosition.x, cloudPosition.y, cloudPosition.z);
+		cloudVehicleMesh->UpdateScene(scaling * rotation * translation);
+		if (ridingCloud)
+			playerPosition = cloudPosition + D3DXVECTOR3(0, cloudSize.y * 0.5f, 0);
+	}
+
+	void ToggleDayNightPause()
+	{
+		dayNight.paused = !dayNight.paused;
+		lastClockMinute = -1;
+	}
+
+	void UpdateClockTitle()
+	{
+		const int minute = static_cast<int>(dayNight.hour * 60.0) % (24 * 60);
+		const int cloudHint = ridingCloud ? 2 : (CanMountCloudVehicle() ? 1 : 0);
+		if (minute == lastClockMinute && cloudHint == lastCloudHint) return;
+		lastClockMinute = minute;
+		lastCloudHint = cloudHint;
+		wchar_t title[192];
+		swprintf_s(title, L"Pablito Pinwi | %02d:%02d%s%s", minute / 60, minute % 60,
+			dayNight.paused ? L" | Tiempo pausado" : L"",
+			cloudHint == 2 ? L" | Nube: WASD manejar, E bajar" :
+			(cloudHint == 1 ? L" | E: subir a la nube" : L""));
+		SetWindowTextW(gameWindow, title);
 	}
 
 	void ReleaseObjects()
 	{
+		sun.Release();
+		terreno->ReleaseModelResources();
+		delete terreno;
 		casa->ReleaseModelResources();
 		mesa->ReleaseModelResources();
 		pocion->ReleaseModelResources();
 		delete casa;
 		delete mesa;
 		delete pocion;
-		MPrimitives* additionalModels[] = { pablito, tree, fence, furnace, pipe, corner_pipe };
+		MPrimitives* additionalModels[] = { pablito, cloudVehicleMesh, tree, fence, furnace, pipe, corner_pipe };
 		for (MPrimitives* model : additionalModels)
 		{
 			model->ReleaseModelResources();
@@ -369,6 +549,8 @@ public:
 		d3d11DevCon->Release();
 		renderTargetView->Release();
 		depthStencilView->Release();
+		delete camara;
+		delete skyCamara;
 	}
 
 	bool InitScene(int Width, int Height)
@@ -384,21 +566,25 @@ public:
 		viewport.MinDepth = 0.0f;
 		viewport.MaxDepth = 1.0f;
 
-		//set light values
-		light.direction = D3DXVECTOR3(1.0f, 0.0f, 0.0f);
-		light.ambient = D3DXVECTOR4(0.3f, 0.3f, 0.3f, 1.0f);
-		light.diffuse = D3DXVECTOR4(1.0f, 1.0f, 1.0f, 1.0f);
-
 		//Set the Viewport
 		d3d11DevCon->RSSetViewports(1, &viewport);
 
-		//Create the camera
-		// Start in the flatter village area, facing the imported models.
-		D3DXVECTOR3 Position(384.0f, terreno->getTerrainCollision(D3DXVECTOR2(384.0f, 380.0f)) + 3.0f, 380.0f);
-		D3DXVECTOR3 Target = D3DXVECTOR3(0.0f, 0.0f, 0.0f);
+		// Spawn Pablito in the village; both views share his feet and look angles.
+		D3DXMATRIX terrainWorld;
+		D3DXMatrixTranslation(&terrainWorld, terrainSettings.position.x,
+			terrainSettings.position.y, terrainSettings.position.z);
+		terreno->UpdateScene(terrainWorld);
+		playerPosition.y = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
+		UpdateCloudVehicle();
+		D3DXVECTOR3 Position = playerPosition;
+		D3DXVECTOR3 Target = Position + D3DXVECTOR3(0.0f, 0.0f, 1.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
 		camara = new Camara(Position,Target,Up, Width, Height);
 		skyCamara = new Camara(Position,Target,Up, Width, Height);
+		camara->UpdateRotation(0.0f, D3DXToRadian(10.0f));
+		UpdatePlayerCamera();
+		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
+		UpdateClockTitle();
 
 		return true;
 	}
@@ -435,7 +621,11 @@ public:
 			tableY + mesa->GetModelHeight() * mesaScale, tableXZ.y);
 		pocion->UpdateScene(scaling * translation);
 
-		PlaceModel(pablito, 378.0f, 399.0f, pablitoScale, 180.0f);
+		// The exported mesh faces +X. Rotate it to the player's horizontal heading.
+		D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
+		D3DXMatrixRotationY(&rotation, playerYaw - D3DX_PI * 0.5f);
+		D3DXMatrixTranslation(&translation, playerPosition.x, playerPosition.y, playerPosition.z);
+		pablito->UpdateScene(scaling * rotation * translation);
 		PlaceModel(tree, 360.0f, 438.0f, treeScale);
 		PlaceModel(fence, 403.0f, 427.0f, fenceScale);
 		PlaceModel(furnace, 394.0f, 412.0f, furnaceScale);
@@ -443,14 +633,45 @@ public:
 		PlaceModel(corner_pipe, 402.0f, 415.0f, cornerPipeScale);
 	}
 
+	void UpdatePlayerCamera()
+	{
+		if (ridingCloud && !camara->IsThirdPerson()) camara->TogglePerspective();
+		const float playerHeight = pablito->GetModelHeight() * pablitoScale;
+		const D3DXVECTOR3 eyes = playerPosition + D3DXVECTOR3(0, playerHeight * 0.86f, 0);
+		const float followDistance = ridingCloud ? fmaxf(playerHeight * 2.5f, cloudSize.z * 2.0f) : playerHeight * 2.5f;
+		camara->FollowPlayer(eyes, followDistance);
+		if (camara->IsThirdPerson())
+		{
+			// Shorten the camera arm at hills, checking the whole path from the player.
+			const D3DXVECTOR3 arm = camara->Position - eyes;
+			const int samples = 48;
+			for (int i = 1; i <= samples; ++i)
+			{
+				const D3DXVECTOR3 probe = eyes + arm * (static_cast<float>(i) / samples);
+				if (probe.y < terreno->getTerrainCollision(D3DXVECTOR2(probe.x, probe.z)) + 0.4f)
+				{
+					camara->Position = eyes + arm * (static_cast<float>(i - 1) / samples);
+					camara->UpdateView();
+					break;
+				}
+			}
+		}
+		skyCamara->setSkyCamara(camara);
+	}
+
 	void UpdateScene()
 	{
 		const auto now = std::chrono::steady_clock::now();
-		frameSeconds = std::chrono::duration<float>(now - lastFrameTime).count();
+		const double elapsedSeconds = std::chrono::duration<double>(now - lastFrameTime).count();
+		frameSeconds = static_cast<float>(elapsedSeconds);
 		lastFrameTime = now;
 		// Evita avances bruscos al pausar o arrastrar la ventana.
 		if (frameSeconds > 0.05f)
 			frameSeconds = 0.05f;
+		// Input, player physics, model transforms and cameras use this same frame.
+		DetectInput();
+		// The clock uses elapsed real time even when movement needs a capped step.
+		dayNight.Advance(elapsedSeconds * (fastForwardTime ? 30.0 : 1.0));
 
 		LastBoundingPosition = BoundingSphereTranslation;
 		BoundingSphereTranslation += DummyBoundyEvents;
@@ -490,9 +711,7 @@ public:
 		D3DXMatrixTranslation(&terrMat, terrainSettings.position.x,
 			terrainSettings.position.y, terrainSettings.position.z);
 		terreno->UpdateScene(terrMat);
-		UpdateImportedModels();
-
-		float groundHeight = terreno->getTerrainCollision(camara->getXZ()) + 3.0f;
+		const float groundHeight = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
 
 		if (isJumping)
 		{
@@ -508,7 +727,13 @@ public:
 			}
 		}
 
-		camara->Position.y = groundHeight + jumpOffset;
+		UpdateCloudVehicle();
+		if (!ridingCloud)
+			playerPosition.y = groundHeight + jumpOffset;
+		UpdatePlayerCamera();
+		UpdateImportedModels();
+		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
+		UpdateClockTitle();
 
 		BoundingSphere1->UpdateScene(Bounding1 * MatAcomodo * BoundinMatTranslation);
 		BoundingSphere2->UpdateScene(Bounding2 * MatAcomodo);
@@ -529,6 +754,15 @@ public:
 
 	void DrawScene()
 	{
+		// Real silhouettes, including Pablito when his mesh is hidden in first person.
+		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pocion, pablito, cloudVehicleMesh, tree,
+			fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,
+			BoundingSphere1, BoundingSphere2 };
+		sun.BeginShadowPass(d3d11DevCon);
+		for (MPrimitives* model : shadowCasters)
+			model->DrawShadow(sun.GetViewProjection());
+		sun.EndShadowPass(d3d11DevCon);
+		sun.Bind(d3d11DevCon);
 		//Clear our backbuffer to the updated color
 		D3DXCOLOR bgColor(0.0f, 0.0f, 0.25f, 1.0f);
 		d3d11DevCon->ClearRenderTargetView(renderTargetView, bgColor);
@@ -548,7 +782,10 @@ public:
 		casa->DrawScene(camara);
 		mesa->DrawScene(camara);
 		pocion->DrawScene(camara);
-		pablito->DrawScene(camara);
+		cloudVehicleMesh->DrawScene(camara);
+		// Keep his world transform and shadow in first person, but hide the mesh.
+		if (camara->IsThirdPerson())
+			pablito->DrawScene(camara);
 		tree->DrawScene(camara);
 		fence->DrawScene(camara);
 		furnace->DrawScene(camara);

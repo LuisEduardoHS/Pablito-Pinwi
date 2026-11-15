@@ -1,135 +1,128 @@
 # Terreno de Pablito Pinwi
 
-La solución activa es `../DXClase2.sln`. La carpeta `../Objetos/plantilla`
-contiene otra plantilla y no interviene en esta solución.
+La solución activa es `../DXClase2.sln`; `../Objetos/plantilla` es otra plantilla.
 
-## Archivo integrado
+## Valle y montañas actuales
 
-`Texturas/PablitoPinwi_Heightmap_256.bmp` es una copia exacta del BMP proporcionado:
-256 × 256 píxeles, 24 bits, BI_RGB sin compresión, en escala de grises.
-SHA-256: `A364D973C9F9DBA28A0E52EB66030E91F5FD957DD439147D827210256302729A`.
-El archivo original `heightmap01.bmp` permanece disponible.
+El mundo ocupa **1,152 × 1,152 unidades**, con alturas de **28.00 a 312.75**.
+Combina una terraza de pueblo a Y=30, praderas onduladas, estribaciones,
+cumbres de distintas alturas y pasos entre montañas. Las montañas se elevan
+sobre los bordes y al fondo del valle. El comienzo, la casa y los objetos
+conservan sus coordenadas X/Z y descansan sobre la nueva terraza.
 
-## Configuración
+Las montañas forman macizos alargados y asimétricos: cumbres anchas, mesetas
+verdes, crestas conectadas y contrafuertes de roca. Se combinan volúmenes
+redondeados mediante uniones suaves y desplazamiento irregular del relieve.
+Una pasada de drenaje acumula el flujo cuesta abajo y erosiona canales que
+se ramifican por las laderas. Así se evitan los conos aislados y las puntas
+simétricas de la versión anterior, conservando una lectura estilizada.
 
-Editar los valores `terrainSettings` en el constructor de `DXRender.h` y recompilar:
+Hay una ruta principal que sale del inicio, rodea la casa por el este y llega
+al paso norte; ramales hacia el noroeste y el este; un recorrido que vuelve por
+el sureste; y un acceso corto a la plaza. Los anchos son de 12 a 18 unidades.
+Los caminos tienen alturas propias y transiciones amplias hacia las laderas:
+no se limitan a pintar una carretera encima de una pendiente impracticable.
+Las pendientes longitudinales del trazado están por debajo del 18 %.
 
-| Parámetro | Valor inicial | Efecto |
+## Archivos y regeneración
+
+- `Texturas/Pablito_Valley_513.bmp`: altura de 513 × 513 muestras, BI_RGB32.
+- `Texturas/Pablito_Valley_Paths.png`: control de materiales de 1025 × 1025.
+  R es camino, G es borde de grava/tierra y B es variación de la pradera.
+- `Tools/generate_valley.py`: diseño reproducible de montañas, terraza,
+  curvas, niveles y anchos de caminos. Ambas imágenes salen del mismo diseño.
+- `Tools/check_valley.py`: valida precisión, alturas, terraza, pendientes y
+  conectividad de los caminos desde el punto inicial.
+
+Para regenerar desde la carpeta del proyecto:
+
+```powershell
+python -m pip install numpy pillow
+python Tools/generate_valley.py
+python Tools/check_valley.py
+```
+
+Si solo se cambia la forma de las montañas, este comando regenera la altura
+conservando la máscara de los caminos:
+
+```powershell
+python Tools/generate_valley.py --height-only
+```
+
+Al modificar los trazados o sus anchos, ejecutar el comando completo.
+
+Python, NumPy y Pillow solo se usan al generar o verificar los archivos. El
+juego carga los recursos ya generados y no requiere estas dependencias.
+
+El BMP anterior `PablitoPinwi_Heightmap_256.bmp` permanece disponible, junto con
+`heightmap01.bmp`. El archivo proporcionado originalmente conserva el SHA-256
+`A364D973C9F9DBA28A0E52EB66030E91F5FD957DD439147D827210256302729A`.
+
+## Escala y precisión
+
+Se configura en el constructor de `DXRender.h`:
+
+| Parámetro | Valor | Uso |
 | --- | --- | --- |
-| `width` | 255 | Ancho físico en X |
-| `depth` | 255 | Largo físico en Z |
-| `horizontalScale` | 3 | Multiplica ancho y largo |
-| `maxHeight` | 85 | Altura de un píxel blanco (255) |
-| `verticalScale` | 1 | Multiplica todas las elevaciones |
-| `position` | (0, 0, 0) | Traslación del terreno en el mundo |
+| `width`, `depth` | 384 | Extensión base |
+| `horizontalScale` | 3 | Extensión física de 1,152 por eje |
+| `maxHeight` | 360 | Rango completo de codificación de altura |
+| `verticalScale` | 1 | Multiplicador vertical |
+| `position` | (0, 0, 0) | Traslación del terreno |
+| `highPrecisionHeightmap` | true | Altura de 16 bits en BMP de 32 bits |
+| `blendMapPath` | `Texturas/Pablito_Valley_Paths.png` | Máscara de materiales |
 
-Para este archivo gris, la altura local es:
+La modalidad de alta precisión codifica el byte alto en RGB gris y el byte
+bajo en alfa: `altura = (R * 256 + A) / 65535 * maxHeight * verticalScale`.
+La resolución vertical es de unas 0.0055 unidades. Así se evitan los saltos
+visibles de más de una unidad que produciría ampliar un heightmap de 8 bits
+hasta estas alturas. No guardar el BMP nuevo con un editor que descarte alfa.
 
-`altura = (gris / 255.0f) * maxHeight * verticalScale`
+Para usar un BMP gris convencional de 24/32 bits, desactivar
+`highPrecisionHeightmap`. Se mantiene la fórmula `gris / 255 * maxHeight` y
+la validación de formato, dimensiones, relleno de filas y longitud del archivo.
+El cargador admite BI_RGB de 24/32 bits, entre 2 y 1024 muestras por eje.
 
-No se normaliza el histograma, no se recorta el relieve y no se redondean las
-alturas a enteros. Como la imagen contiene valores entre 41 y 237, la configuración
-actual produce alturas entre 13.6667 y 79 unidades. `maxHeight = 85` define la
-altura del blanco, no obliga al punto más alto de esta imagen a llegar a 85.
-Para que el pico de este archivo alcance una altura H, usar
-`maxHeight = H * 255 / 237`, con `verticalScale = 1`.
+La malla tiene 263,169 vértices y 524,288 triángulos con índices de 32 bits.
+La separación es de 2.25 unidades. Las normales se calculan a partir de sus
+triángulos; la consulta de altura interpola los mismos triángulos e incluye
+la traslación. Pablito, la nube y los objetos consultan esa misma superficie.
+La nube sigue limitada al interior del terreno. La cámara comprueba el terreno
+para acortar su brazo cuando una ladera se interpone.
 
-El ancho real anterior era 255 × 255 unidades: el argumento `100.0f` de la
-plantilla se ignoraba. Se conserva como tamaño base; con `horizontalScale = 3` el terreno ocupa
-765 × 765 unidades, independientemente de la resolución de futuros archivos.
-La distancia lejana de la cámara se amplió de 1000 a 1500 unidades para abarcarlo. La posición no afecta a la mezcla de texturas por altura.
-Las escalas se incorporan a los vértices y la matriz de mundo aplica la traslación;
-la consulta de colisión admite esa configuración, sin rotación adicional.
+## Materiales y profundidad del paisaje
 
-## Carga y malla
+`pixelShaderMultitextura.ps` usa las texturas existentes de pasto
+(`Meshpart1_diff.png`), tierra (`dirt_diff.png`) y roca (`rock.jpg`).
+El pasto mezcla dos escalas y variación amplia de color para reducir la
+repetición; los caminos usan tierra cálida, con bordes irregulares y una
+transición de grava hacia la pradera. Se conserva el detalle de las texturas
+con un contraste más suave para acompañar el estilo de Pablito.
 
-`MPrimitives::LoadHeightMap` valida las cabeceras, dimensiones, desplazamiento y
-longitud del archivo. Lee filas con su relleno a múltiplos de cuatro bytes y
-reconoce BMP con filas almacenadas de abajo arriba o de arriba abajo. El borde
-inferior de la imagen corresponde a Z=0, manteniendo la convención de la plantilla.
-Para BMP de color se usa luminancia; en 32 bits se ignora el alfa.
+La roca aparece principalmente en las pendientes fuertes y los escarpes;
+la influencia de la altitud es leve para conservar pasto sobre las cumbres y
+las mesetas. Su proyección triplanar evita estirarla por paredes altas.
+Una neblina suave por distancia separa las montañas del primer plano y adapta
+su color al día y la noche. Los materiales siguen recibiendo la iluminación
+y las sombras comunes de `SunLighting.hlsli`, `SunLight.h` y `DayNightCycle.h`.
 
-La malla usa un vértice por píxel e índices de 32 bits: para este archivo hay
-65,536 vértices y 390,150 índices (130,050 triángulos). Los índices utilizan el
-ancho como paso de fila, por lo que también se admiten imágenes rectangulares.
-Se calculan normales con los triángulos del terreno. Las UV repiten las texturas
-64 veces por eje mediante el sampler WRAP existente. Para ajustar el tamaño
-visual, cambiar `TEXTURE_REPEAT` en el constructor del terreno de
-`MeshPrimitives.h`: un valor mayor produce detalles más pequeños. Este ajuste
-afecta a las tres texturas, que comparten las UV.
+La máscara se aplica una sola vez sobre todo el mapa, con UV independientes de
+las texturas repetidas. Usa t6/s3 para respetar los recursos del sol, la luna
+y las estrellas en t3-t5/s1-s2. Un sampler CLAMP evita repetir los caminos en
+los extremos. La cámara tiene alcance de 2,500 unidades y el cielo radio 2,000
+para que el fondo no corte las montañas distantes.
 
-Se conserva `vertexShader.vs`. El shader `pixelShaderMultitextura.ps` mezcla
-el pasto `Meshpart1_diff.png` (t1), tierra `dirt_diff.png` (t0) y roca (t2) según la altura local.
-El pasto domina hasta el 45% de la altura máxima de la malla. La tierra entra
-suavemente entre el 45% y el 80%, y la roca entre el 80% y el 100%. Con el pico
-actual de 79 unidades, los intervalos son 35.55–63.2 y 63.2–79 unidades.
-Las transiciones usan `smoothstep` y `lerp`, sin sumar colores ni aplicar
-multiplicadores de iluminación que apaguen el verde original en las zonas bajas.
-Para retrasar los cambios, aumentar `sandStart` y `rockStart`; para suavizarlos,
-ampliar la separación respecto a `sandEnd` y `rockEnd`, manteniendo los valores
-entre 0 y 1 y el inicio menor que el fin. La repetición continúa en 64 por eje.
+## Verificación
 
-La consulta de altura interpola sobre los mismos triángulos que se dibujan y
-contempla la traslación; fuera del terreno devuelve la altura del plano base.
-No se añadieron límites al movimiento.
+1. Abrir `../DXClase2.sln`, seleccionar `Debug | Win32` y compilar.
+2. Ejecutar desde la carpeta del proyecto, que contiene shaders y recursos.
+3. Recorrer las rutas caminando y con la nube; mirar las laderas, las cumbres,
+   la plaza y los bordes de los caminos. C alterna cámara; E sube/baja.
+4. `python Tools/check_valley.py` comprueba los recursos generados.
 
-Los datos temporales se gestionan con vectores y el archivo se cierra por RAII.
-Un error de lectura o de creación de buffers muestra un mensaje y detiene la
-inicialización de la escena.
-
-## Futuros heightmaps
-
-Colocarlos en `Texturas/`, junto a este BMP, y cambiar la ruta del constructor de
-`terreno` en `DXRender.h`. El cargador admite BMP BI_RGB de 24 o 32 bits,
-entre 2 y 1024 píxeles por eje, sin exigir dimensiones cuadradas ni potencias de
-dos. El límite controla el consumo de memoria de la aplicación Win32.
-PNG, BMP indexados de 8 bits, 16 bits, RLE y BI_BITFIELDS requieren conversión
-previa o ampliar el cargador. No se remuestrea el archivo.
-
-## Verificación en Visual Studio
-
-1. Abrir `../DXClase2.sln` y seleccionar `DXClase2` como proyecto de inicio.
-2. Elegir `Debug | Win32` (puede mostrarse como x86) y compilar la solución.
-3. Ejecutar con F5 o Ctrl+F5. El proyecto establece el directorio de trabajo en
-   `$(ProjectDir)` para encontrar los shaders y `Texturas/`.
-4. Recorrer el terreno y revisar relieve, textura de pasto y seguimiento de la
-   altura. Probar cambios de escala o posición después de recompilar.
-
-La plantilla usa el SDK DirectX de junio de 2010 y el toolset v143.
-Para ejecutar el EXE manualmente se debe usar como directorio de trabajo la
-carpeta del proyecto, donde están los shaders.
-
-## Comprobaciones realizadas
-
-- Compilación y enlace reales de `Debug | Win32` con MSBuild: correctos.
-  Hay advertencias en el SDK antiguo y en código de la plantilla; no se realizó
-  una limpieza de advertencias ajena al terreno. Release no se verificó.
-- Ejecución de la aplicación y captura de su ventana: terreno y texturas visibles.
-- Prueba temporal en C++ contra `MPrimitives` con un dispositivo Direct3D 11 WARP:
-  comprobó índices leídos del buffer GPU, alturas, normales y carga de los tres
-  recursos de textura y ambos shaders.
-- Casos pequeños de prueba: BMP rectangulares de 24/32 bits, relleno de filas,
-  ambas orientaciones, escalas, traslación e interpolación en ambos triángulos.
-  Se comprobó el rechazo de archivos ausentes, truncados o de formato incompatible.
-- Hash del archivo copiado idéntico al proporcionado y `git diff --check` correcto.
-
-Estas comprobaciones no sustituyen una prueba extensa de jugabilidad ni validan
-otras configuraciones de compilación.
-
-La textura de tierra `Texturas/dirt_diff.png` es una copia del archivo
-`Downloads/dirt/Meshpart1_diff.png` proporcionado. Se renombró para evitar
-sobrescribir el archivo de pasto, que tiene el mismo nombre de origen.
-
-## Integración de main del 28 de octubre de 2026
-
-Se incorporó el cielo `Texturas/skybox.png` y los seis modelos adicionales de main:
-Pablito, árbol, cerca, horno, tubo y codo. Los tres modelos locales (casa, mesa y
-poción) se conservaron para evitar duplicar sus instancias. Los archivos remotos
-alternativos de esos tres también permanecen en el repositorio.
-
-Los modelos nuevos se centran en su base durante la carga y su Y se obtiene de
-la altura del terreno. Cada modelo tiene una escala independiente en el constructor
-de DXRender. Las posiciones están en `UpdateImportedModels()`; `PlaceModel()`
-aplica escala, rotación y traslación. La poción sigue colocada sobre la mesa.
-Pablito conserva el material provisional `escudo.jpg` incluido en main.
-La tabla y los bloques de código actuales están en `../../GUIA_CAPTURAS_AVANCE_2.md`.
+Se verificaron la compilación y el enlace con MSBuild, la compilación real de
+los shaders al ejecutar, las alturas y normales del terreno, la carga GPU de
+la máscara y el sampler, y la terraza del pueblo. La prueba de los archivos
+comprueba los 36,741 píxeles conectados de camino, el uso de los 256 valores
+del byte bajo y las pendientes de los trazados. El SDK DirectX de junio de
+2010 mantiene advertencias de compilación heredadas de la plantilla.

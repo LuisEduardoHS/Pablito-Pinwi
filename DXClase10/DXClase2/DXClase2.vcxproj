@@ -92,12 +92,29 @@
     <ClInclude Include="DXRender.h" />
     <ClInclude Include="Light.h" />
     <ClInclude Include="MeshPrimitives.h" />
+    <ClInclude Include="TerrainShadows.h" />
+    <ClInclude Include="ShaderCompiler.h" />
+    <ClInclude Include="SunLight.h" />
+    <ClInclude Include="DayNightCycle.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Texturas\PablitoPinwi_Heightmap_256.bmp" />
+    <None Include="Texturas\Pablito_Valley_513.bmp" />
+    <None Include="Texturas\Pablito_Valley_Paths.png" />
+    <None Include="Tools\generate_valley.py" />
+    <None Include="Tools\check_valley.py" />
     <None Include="Texturas\Meshpart1_diff.png" />
     <None Include="Texturas\dirt_diff.png" />
     <None Include="pixelShader.ps" />
+    <None Include="pixelShaderSky.ps" />
+    <None Include="SunLighting.hlsli" />
+    <None Include="sunShadow.hlsl" />
+    <None Include="SOMBRAS.md" />
+    <None Include="SOL.md" />
+    <None Include="DIA_NOCHE.md" />
+    <None Include="Tools\check_day_night.cpp" />
+    <None Include="Texturas\T_Moon.png" />
+    <None Include="Texturas\T_Stars.png" />
     <None Include="pixelShaderGUI.ps" />
     <None Include="pixelShaderMultitextura.ps" />
     <None Include="vertexShader.vs" />
@@ -140,6 +157,11 @@
     <None Include="Texturas\pipe.png" />
     <None Include="Texturas\corner_pipe.png" />
     <None Include="Texturas\skybox.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Models\pablitopinwi_textured.txt" />
+    <None Include="Texturas\pablito_diffuse.png" />
+    <None Include="Tools\prepare_pablito_uv.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

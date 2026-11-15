@@ -1,15 +1,4 @@
-struct Light
-{
-	float3 direction;
-	float specularPower;
-	float4 ambient;
-	float4 diffuse;
-};
-
-cbuffer ConstantBufferPS
-{
-	Light light;
-};
+#include "SunLighting.hlsli"
 
 struct VS_OUTPUT
 {
@@ -19,6 +8,9 @@ struct VS_OUTPUT
 	float3 viewDirection : COORDS;
 	float3 tangent : TANGENT;
 	float3 binormal : BINORMAL;
+	float4 vectPos : POSITION;
+	float maxHeight : HEIGHT;
+	float3 worldPosition : TEXCOORD1;
 };
 
 Texture2D ObjTexture;
@@ -30,8 +22,7 @@ float4 PS( VS_OUTPUT input ) : SV_Target
 	input.normal = normalize(input.normal);
 	float4 textureColor = ObjTexture.Sample( ObjSamplerState, input.TexCoord );
 
-	float3 finalColor = textureColor * light.ambient;
-	finalColor += saturate(dot(light.direction, input.normal) * light.diffuse * textureColor);
+	float3 finalColor = SunLitColor(textureColor.rgb, input.normal, input.worldPosition);
 
 	clip(textureColor.a - 0.9f);
 

@@ -26,6 +26,18 @@
     <ClInclude Include="DXRender.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="TerrainShadows.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderCompiler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SunLight.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="DayNightCycle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="MeshPrimitives.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -41,6 +53,21 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="vertexShader.vs">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="pixelShaderSky.ps">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="SunLighting.hlsli">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Texturas\T_Moon.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Texturas\T_Stars.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="sunShadow.hlsl">
       <Filter>Resource Files</Filter>
     </None>
     <None Include="pixelShader.ps">
@@ -156,6 +183,29 @@
     </None>
     <None Include="Texturas\skybox.png">
       <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Models\pablitopinwi_textured.txt">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\pablito_diffuse.png">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Tools\prepare_pablito_uv.py">
+      <Filter>Modelos Pablito Pinwi</Filter>
+    </None>
+    <None Include="Texturas\Pablito_Valley_513.bmp">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Texturas\Pablito_Valley_Paths.png">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="Tools\generate_valley.py">
+      <Filter>Source Files</Filter>
+    </None>
+    <None Include="Tools\check_valley.py">
+      <Filter>Source Files</Filter>
     </None>
   </ItemGroup>
 </Project>
