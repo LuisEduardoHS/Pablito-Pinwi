@@ -1,6 +1,7 @@
 #ifndef GC_ALCHEMY_HUD_H
 #define GC_ALCHEMY_HUD_H
 #include "AlchemyGame.h"
+#include "IngredientIcons.h"
 #include "../InteractionPrompt.h"
 #include <iomanip>
 
@@ -16,6 +17,7 @@ class Hud
     unsigned char* pixels=nullptr;int width=0,height=0;
     float refresh=0,noticeAge=0,recipeAge=0,lastNoticeSeconds=0;
     bool recipeWasOpen=false;int lastOrder=-1;std::wstring lastNotice,lastRecipe;
+    IngredientIcons ingredientIcons;
     void Text(int x,int y,int w,int h,const std::wstring& text,COLORREF color=Ink,HFONT face=nullptr,
         UINT flags=DT_LEFT|DT_TOP|DT_WORDBREAK|DT_NOPREFIX)
     {
@@ -53,23 +55,43 @@ class Hud
         Text(18,61,350,18,L"Entregas "+std::to_wstring(game.successes)+L"/"+std::to_wstring(game.rules.successGoal)
             +L"   Fallos "+std::to_wstring(game.failures)+L"/"+std::to_wstring(game.rules.failureLimit),Muted,smallFont);
     }
+    static std::wstring RecipeLine(const Recipe& recipe,size_t index)
+    {
+        const Requirement& req=recipe.ingredients[index];
+        return (recipe.ordered?std::to_wstring(index+1)+L". ":L"")+std::to_wstring(req.quantity)+L" x "+Name(req.type)+(req.ground?L" (triturada)":L"");
+    }
     void DrawRecipe(const Game& game)
     {
         const Recipe& recipe=game.CurrentRecipe();Text(18,101,320,18,recipe.ordered?L"RECETA / EN ESTE ORDEN  [R]":L"RECETA  [R]",Muted);
-        std::wstring body;
+        const size_t budget=static_cast<size_t>(recipeAge*80);size_t offset=0;
         for(size_t i=0;i<recipe.ingredients.size();++i)
         {
-            const Requirement& req=recipe.ingredients[i];
-            body+=(recipe.ordered?std::to_wstring(i+1)+L". ":L"  ")+std::to_wstring(req.quantity)+L" x "+Name(req.type)
-                +(req.ground?L" (triturada)":L"")+L"\n";
+            const std::wstring line=RecipeLine(recipe,i);
+            if(budget>=offset)Text(46,128+static_cast<int>(i)*24,306,18,Reveal(line,static_cast<float>(budget-offset),1),Ink,nullptr,DT_LEFT|DT_TOP|DT_SINGLELINE|DT_NOPREFIX);
+            offset+=line.size()+1;
         }
-        body+=L"\nMezclar "+Number(recipe.mixSeconds,0)+L" s\n";
+        std::wstring body=L"Mezclar "+Number(recipe.mixSeconds,0)+L" s\n";
         body+=recipe.heatMax>0?L"Calentar "+Number(recipe.heatMin,0)+L" a "+Number(recipe.heatMax,0)+L" s":L"Sin fuego";
-        body+=L"\nEmbotellar y entregar.";Text(18,126,326,height-270,Reveal(body,recipeAge,80));
+        body+=L"\nEmbotellar y entregar.";
+        if(budget>=offset)Text(18,136+static_cast<int>(recipe.ingredients.size())*24,326,64,Reveal(body,static_cast<float>(budget-offset),1),Muted);
+    }
+    void DrawIngredientIcons(const Game& game)
+    {
+        if(game.showRecipe)
+        {
+            const Recipe& recipe=game.CurrentRecipe();const size_t budget=static_cast<size_t>(recipeAge*80);size_t offset=0;
+            for(size_t i=0;i<recipe.ingredients.size();++i)
+            {
+                if(budget>=offset)ingredientIcons.Draw(pixels,width,height,recipe.ingredients[i].type,18,125+static_cast<int>(i)*24,20);
+                offset+=RecipeLine(recipe,i).size()+1;
+            }
+        }
+        if(game.Carried())ingredientIcons.Draw(pixels,width,height,game.Carried()->type,width-42,14,24);
     }
     void DrawCarry(const Game& game)
     {
-        const int x=width-320;Text(x,18,302,18,L"MANO / "+(game.Carried()?Game::ItemName(*game.Carried()):L"libre"),Ink,nullptr,DT_RIGHT|DT_SINGLELINE|DT_NOPREFIX);
+        const bool icon=game.Carried() && IngredientIcons::Has(game.Carried()->type);
+        const int x=width-320;Text(x,18,icon?270:302,18,L"MANO / "+(game.Carried()?Game::ItemName(*game.Carried()):L"libre"),Ink,nullptr,DT_RIGHT|DT_SINGLELINE|DT_NOPREFIX);
         if(game.Carried())
         {
             std::wstring hint=L"[Q] Soltar";
@@ -110,7 +132,7 @@ class Hud
     }
     bool Resize(ID3D11Device* device,int w,int h)
     {
-        Release();width=w;height=h;dc=CreateCompatibleDC(nullptr);BITMAPINFO info={};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+        ReleaseSurface();width=w;height=h;dc=CreateCompatibleDC(nullptr);BITMAPINFO info={};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
         info.bmiHeader.biWidth=w;info.bmiHeader.biHeight=-h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
         void* data=nullptr;bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&data,nullptr,0);pixels=static_cast<unsigned char*>(data);
         if(!dc || !bitmap || !pixels)return false;previousBitmap=SelectObject(dc,bitmap);SetBkMode(dc,TRANSPARENT);
@@ -121,7 +143,7 @@ class Hud
     }
 public:
     Hud()=default;Hud(const Hud&)=delete;Hud& operator=(const Hud&)=delete;~Hud(){Release();}
-    bool Init(ID3D11Device* device,int w,int h){return Resize(device,w,h);}
+    bool Init(ID3D11Device* device,int w,int h){return ingredientIcons.Init(device) && Resize(device,w,h);}
     void Draw(ID3D11Device* device,ID3D11DeviceContext* context,InteractionPrompt& renderer,const Game& game,const std::wstring& action,bool focused,float seconds,const Target* target=nullptr)
     {
         if(game.state!=MatchState::Playing)return;
@@ -147,12 +169,15 @@ public:
                 unsigned char* p=pixels+i*4;const COLORREF color=RGB(p[2],p[1],p[0]);const unsigned char b=p[0];p[0]=p[2];p[2]=b;
                 p[3]=color==0?0:color==Shadow?220:255;
             }
+            DrawIngredientIcons(game);
             context->UpdateSubresource(texture,0,nullptr,pixels,width*4,0);
         }
         renderer.DrawScreen(view,0,0,static_cast<float>(width),static_cast<float>(height));
     }
     void Invalidate(){refresh=0;}
-    void Release()
+    void Release(){ingredientIcons.Clear();ReleaseSurface();}
+private:
+    void ReleaseSurface()
     {
         if(view){view->Release();view=nullptr;}if(texture){texture->Release();texture=nullptr;}
         if(dc && previousBitmap)SelectObject(dc,previousBitmap);

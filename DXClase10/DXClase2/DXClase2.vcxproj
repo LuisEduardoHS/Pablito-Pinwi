@@ -108,6 +108,8 @@
     <ClInclude Include="Gameplay\AlchemyGame.h" />
     <ClInclude Include="Gameplay\AlchemyScene.h" />
     <ClInclude Include="Gameplay\AlchemyHud.h" />
+    <ClInclude Include="Gameplay\IngredientIcons.h" />
+    <ClInclude Include="Gameplay\HudImage.h" />
     <ClInclude Include="Gameplay\GameScreens.h" />
     <ClInclude Include="Gameplay\PablitoAnimator.h" />
     <ClInclude Include="Gameplay\PablitoRigData.h" />
@@ -133,6 +135,14 @@
     <None Include="pixelShaderGUI.ps" />
     <None Include="interactionPrompt.hlsl" />
     <None Include="Texturas\Tecla-E.png" />
+    <None Include="Texturas\Ingredientes\hongo-rojo.png" />
+    <None Include="Texturas\Ingredientes\flor-azul.png" />
+    <None Include="Texturas\Ingredientes\cristal-morado.png" />
+    <None Include="Texturas\Ingredientes\agua.png" />
+    <None Include="Texturas\Ingredientes\hierba-verde.png" />
+    <None Include="Texturas\Ingredientes\raiz-luminosa.png" />
+    <None Include="Texturas\Pantallas\ganaste.png" />
+    <None Include="Texturas\Pantallas\has-perdido.png" />
     <None Include="INTERACCIONES.md" />
     <None Include="COLISIONES.md" />
     <None Include="Tools\check_scene_collision.cpp" />

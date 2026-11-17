@@ -526,7 +526,6 @@ public:
 		if(gameplayInputActive){DIMouse->Unacquire();DIKeyboard->Unacquire();gameplayInputActive=false;}
 		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;
 		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
-		if(gameStarted)AnimatePablito(0,0);
 		UpdateClockTitle();
 	}
 
@@ -1098,28 +1097,13 @@ public:
 		DummyBoundyEvents.y = 0;
 	}
 
-	void DrawResultCharacter()
-	{
-		if(!gameStarted)return;
-		D3D11_VIEWPORT viewport={};UINT count=1;d3d11DevCon->RSGetViewports(&count,&viewport);if(!count)return;
-		D3D11_VIEWPORT preview=viewport;preview.TopLeftX=viewport.Width*.01f;preview.TopLeftY=viewport.Height*.16f;
-		preview.Width=viewport.Width*.28f;preview.Height=viewport.Height*.72f;
-		d3d11DevCon->RSSetViewports(1,&preview);
-		d3d11DevCon->ClearDepthStencilView(depthStencilView,D3D11_CLEAR_DEPTH,1,0);sun.Bind(d3d11DevCon);
-		Camara camera(D3DXVECTOR3(6,3.1f,5.8f),D3DXVECTOR3(0,1.65f,0),D3DXVECTOR3(0,1,0),static_cast<int>(preview.Width),static_cast<int>(preview.Height));
-		const D3DXMATRIX original=pablito->getWorldMatrix();D3DXMATRIX world;D3DXMatrixIdentity(&world);
-		pablito->UpdateScene(world);pablito->DrawScene(&camera);pablito->UpdateScene(original);
-		d3d11DevCon->RSSetViewports(1,&viewport);
-	}
-
 	void DrawScene()
 	{
 		if(IsMenuVisible())
 		{
 			gameScreens.SetScreen(CurrentScreen());
 			d3d11DevCon->ClearRenderTargetView(renderTargetView,D3DXCOLOR(0,0,0,1));
-			gameScreens.Draw(d3d11Device,d3d11DevCon,interactionPrompt,alchemy.successes,alchemy.failures);
-			DrawResultCharacter();
+			gameScreens.Draw(d3d11Device,d3d11DevCon,interactionPrompt);
 			SwapChain->Present(1, 0);return;
 		}
 		// Real silhouettes, including Pablito when his mesh is hidden in first person.

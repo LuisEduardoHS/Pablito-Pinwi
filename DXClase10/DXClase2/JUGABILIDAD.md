@@ -158,8 +158,10 @@ un único botón Iniciar. La escena se carga previamente; los pedidos, el reloj,
 el movimiento y las interacciones permanecen detenidos hasta pulsar el botón.
 Iniciar entra en la escena existente, en su punto inicial y con el tiempo completo.
 
-Victoria y derrota abren pantallas independientes con el resultado y dos botones
-provisionales funcionales: Reiniciar y Salir. El primero comienza otra partida
+Victoria y derrota abren pantallas independientes con los letreros originales
+`Texturas/Pantallas/ganaste.png` y `has-perdido.png` y dos botones funcionales:
+Reiniciar y Salir. Solo se muestran el letrero y los botones, sin el personaje
+ni contadores adicionales. El primero comienza otra partida
 directamente; el segundo cierra el juego por la ruta normal de la ventana.
 El cursor queda libre en los menús y el mouse vuelve a controlar la cámara al
 jugar. Un clic solo se activa si se suelta sobre el mismo botón donde comenzó.
@@ -178,6 +180,14 @@ La ficha se abre/cierra con R y las estaciones solo muestran texto cuando están
 en uso o son el objetivo cercano. El icono E del mundo mide 42 píxeles.
 Las pantallas inicial y de resultado reemplazan completamente el HUD.
 
+Cada ingrediente de la receta lleva su imagen de `Texturas/Ingredientes/`
+en una casilla transparente de 20 píxeles. El ingrediente que lleva Pablito
+aparece también junto a MANO en una casilla de 24 píxeles. Los iconos de la
+receta aparecen con cada línea del texto progresivo y se ocultan al cerrar R.
+Se conservan los nombres, cantidades, orden y requisito de triturado.
+Las imágenes mantienen proporciones y transparencia; los PNG originales no
+se modifican. Frascos y pociones conservan su texto, al no tener icono asignado.
+
 ## Archivos y responsabilidades
 
 Creado:
@@ -189,6 +199,7 @@ Creado:
 - `Gameplay/AlchemyScene.h`: reutilización de modelos, primitivas, poses, dibujo
   y sombras del taller, objetos y señales; gestión de sus recursos.
 - `Gameplay/AlchemyHud.h`: presentación provisional mediante texto y barras.
+- `Gameplay/IngredientIcons.h` / `HudImage.h`: asignación de ingredientes y composición de PNG con transparencia y proporciones conservadas.
 - `Gameplay/GameScreens.h`: inicio, victoria/derrota y botones provisionales.
 - `Gameplay/PablitoAnimator.h` / `PablitoRigData.h`: poses, transiciones y rig de Pablito; ver `ANIMACIONES.md`.
 - `Tools/check_alchemy.cpp`: regresiones de lógica sin ventana ni dispositivo GPU.

@@ -41,7 +41,7 @@ Incluye 22 estados:
 | Deliver | Gesto de entrega de la poción |
 | Read | Mirada hacia abajo al abrir la receta con R |
 | Nope | Negación con la cabeza cuando la interacción no cambia el juego |
-| Victory / Defeat | Celebración y postura triste en las pantallas de resultado |
+| Victory / Defeat | Poses de celebración y tristeza disponibles en el controlador |
 
 Las estaciones siguen sus tiempos originales. El movimiento de trabajo se
 mantiene mientras el proceso está activo y Pablito está cerca y quieto. Puede
@@ -71,9 +71,10 @@ persona se conserva la ocultación del cuerpo, con el objeto frente a la cámara
 y un balanceo leve. Los utensilios de trabajo son un cilindro compartido sin
 colisiones, visible únicamente durante Grind/Stir.
 
-Las pantallas de resultado muestran al personaje animado en una vista lateral
-del menú. La partida y el reloj permanecen detenidos. `DrawResultCharacter`
-define esa vista provisional, para adaptarla al futuro diseño de las pantallas.
+Las pantallas de resultado muestran únicamente los letreros Ganaste/Has perdido
+y los botones Reiniciar/Salir. El personaje no se dibuja en esas pantallas;
+las poses de resultado siguen disponibles en el controlador. La partida y el
+reloj permanecen detenidos.
 
 ## Ajustes y validación
 
