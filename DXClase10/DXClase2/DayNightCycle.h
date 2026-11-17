@@ -59,7 +59,8 @@ public:
         state.starRotation = static_cast<float>(hour * D3DX_PI / 12.0);
         const float highSun = Smooth(0.02f, 0.42f, height);
         state.sunDiskColor = Mix(D3DXVECTOR3(1.0f, 0.40f, 0.10f), D3DXVECTOR3(1.0f, 0.98f, 0.87f), highSun);
-        state.ambient = Mix(D3DXVECTOR3(0.08f, 0.11f, 0.18f), D3DXVECTOR3(0.30f, 0.35f, 0.42f),
+        // Bright moonlit nights keep paths and objects readable, including shadows.
+        state.ambient = Mix(D3DXVECTOR3(0.32f, 0.38f, 0.48f), D3DXVECTOR3(0.30f, 0.35f, 0.42f),
             Smooth(-0.22f, 0.30f, height));
 
         // Switch the shadow map's light only at the horizon, where both direct
@@ -73,8 +74,8 @@ public:
         else
         {
             state.lightDirection = state.moonDirection;
-            state.lightColor = D3DXVECTOR3(0.48f, 0.62f, 1.0f);
-            state.lightIntensity = 0.25f * Smooth(0.0f, 0.25f, moonHeight);
+            state.lightColor = D3DXVECTOR3(0.72f, 0.82f, 1.0f);
+            state.lightIntensity = 0.60f * Smooth(0.0f, 0.25f, moonHeight);
         }
         return state;
     }

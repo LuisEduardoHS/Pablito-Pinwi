@@ -185,7 +185,13 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 		if (wParam == 'C' && (lParam & (1L << 30)) == 0)
 			dxrender->ToggleCameraPerspective();
 		if (wParam == 'E' && (lParam & (1L << 30)) == 0)
-			dxrender->RequestCloudInteraction();
+			dxrender->RequestInteraction();
+		if (wParam == 'Q' && (lParam & (1L << 30)) == 0)
+			dxrender->RequestDrop();
+		if (wParam == 'R' && (lParam & (1L << 30)) == 0)
+			dxrender->RequestRecipe();
+		if (wParam == VK_RETURN && (lParam & (1L << 30)) == 0)
+			dxrender->RequestRestart();
 		if (wParam == VK_F6 && (lParam & (1L << 30)) == 0)
 			dxrender->ToggleDayNightPause();
 		if (wParam == VK_ESCAPE){

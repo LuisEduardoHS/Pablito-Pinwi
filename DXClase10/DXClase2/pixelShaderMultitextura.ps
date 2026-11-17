@@ -57,6 +57,6 @@ float4 PS(VS_OUTPUT input) : SV_Target
     color = SunLitColor(color, normal, input.worldPosition);
     float distance = input.cameraDistance;
     float haze = (1.0f-exp(-max(distance-160.0f, 0.0f)*0.00065f));
-    float3 hazeColor = lerp(float3(0.025f, 0.04f, 0.065f), float3(0.59f, 0.71f, 0.76f), NightSky.x);
+    float3 hazeColor = lerp(float3(0.085f, 0.115f, 0.17f), float3(0.59f, 0.71f, 0.76f), NightSky.x);
     return float4(lerp(color, hazeColor, haze), 1.0f);
 }

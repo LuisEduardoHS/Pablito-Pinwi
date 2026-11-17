@@ -25,9 +25,10 @@ normal. Una vuelta completa con aceleración tarda unos 10 segundos.
   estrellas aparecen suavemente y el fondo pasa a un gradiente azul oscuro.
 - La luna utiliza la textura entregada y una máscara circular para evitar que
   sus esquinas negras tapen un rectángulo del cielo. Tiene un halo suave.
-- Durante la noche, la luna ilumina en azul y proyecta sombras reales usando
-  el mismo sistema de profundidad del sol. La luz ambiente conserva visibilidad
-  del terreno y los objetos.
+- Durante la noche, la luna ilumina con un tono azul suave y proyecta sombras
+  reales usando el mismo sistema de profundidad del sol. El ambiente nocturno
+  elevado permite ver el terreno, los caminos y los objetos incluso en sombra.
+  El cielo y la bruma también son más claros para distinguir las montañas.
 - El cambio de luz solar a lunar ocurre en el horizonte con ambas intensidades
   directas en cero, de modo que no aparece un salto visible de sombras.
 - Las estrellas giran lentamente con la hora. Al cruzar medianoche, el reloj,
@@ -51,8 +52,8 @@ En `DayNightCycle.h`:
 | `paused` | false | Estado inicial del reloj |
 | Inclinación de la órbita | 25° | Elevación máxima del sol y la luna de 65° |
 | Intensidad solar máxima | 0.95 | Luz directa de día, en `GetState()` |
-| Intensidad lunar máxima | 0.25 | Luz directa de noche, en `GetState()` |
-| Ambiente nocturno | (0.08, 0.11, 0.18) | Claridad y tono de las zonas sin luz directa |
+| Intensidad lunar máxima | 0.60 | Luz directa de noche, en `GetState()` |
+| Ambiente nocturno | (0.32, 0.38, 0.48) | Claridad y tono de las zonas sin luz directa |
 
 En `SunLight.h`, `moonRadiusDegrees = 1.5` ajusta el tamaño de la luna y
 `starsExposure = 1.5` el brillo de las estrellas. Se mantienen los ajustes

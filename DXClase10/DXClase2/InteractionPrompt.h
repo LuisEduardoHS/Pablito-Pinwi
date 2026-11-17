@@ -116,6 +116,24 @@ public:
         if (fabsf(screenX) > 1+data.sizeAndOffset.x*0.5f
             || fabsf(screenY) > 1+data.sizeAndOffset.y*0.5f) return false;
 
+        return DrawQuad(data,texture);
+    }
+
+    // The same transparent, unlit quad also presents the provisional HUD.
+    bool DrawScreen(ID3D11ShaderResourceView* image,float left,float top,float width,float height)
+    {
+        if(!context || !image) return false;
+        D3D11_VIEWPORT viewport={};UINT count=1;context->RSGetViewports(&count,&viewport);
+        if(!count || viewport.Width<=0 || viewport.Height<=0) return false;
+        DrawData data;
+        data.anchorClip=D3DXVECTOR4(-1+(2*left+width)/viewport.Width,1-(2*top+height)/viewport.Height,0,1);
+        data.sizeAndOffset=D3DXVECTOR4(2*width/viewport.Width,2*height/viewport.Height,0,0);
+        return DrawQuad(data,image);
+    }
+
+private:
+    bool DrawQuad(const DrawData& data,ID3D11ShaderResourceView* image)
+    {
         ID3D11BlendState* oldBlend = NULL;
         ID3D11DepthStencilState* oldDepth = NULL;
         ID3D11RasterizerState* oldRaster = NULL;
@@ -133,7 +151,7 @@ public:
         context->PSSetShader(pixelShader, NULL, 0);
         context->UpdateSubresource(drawBuffer, 0, NULL, &data, 0, 0);
         context->VSSetConstantBuffers(0, 1, &drawBuffer);
-        context->PSSetShaderResources(0, 1, &texture);
+        context->PSSetShaderResources(0, 1, &image);
         context->PSSetSamplers(0, 1, &sampler);
         context->Draw(4, 0);
         context->OMSetBlendState(oldBlend, factors, mask);
@@ -145,6 +163,7 @@ public:
         return true;
     }
 
+public:
     void Release()
     {
         Free(vertexShader);
