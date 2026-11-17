@@ -101,6 +101,7 @@
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="SunLight.h" />
     <ClInclude Include="DayNightCycle.h" />
+    <ClInclude Include="Vegetation.h" />
     <ClInclude Include="InteractionPrompt.h" />
     <ClInclude Include="SceneCollision.h" />
     <ClInclude Include="Gameplay\InteractionSystem.h" />
@@ -135,6 +136,10 @@
     <None Include="Tools\check_alchemy.cpp" />
     <None Include="JUGABILIDAD.md" />
     <None Include="pixelShaderMultitextura.ps" />
+    <None Include="vegetation.hlsl" />
+    <None Include="Texturas\Vegetacion\pastito-noflores.png" />
+    <None Include="Texturas\Vegetacion\pastito-noflores2.png" />
+    <None Include="Texturas\Vegetacion\arbusto-flores.png" />
     <None Include="vertexShader.vs" />
   </ItemGroup>
   <ItemGroup>

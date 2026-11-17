@@ -1407,16 +1407,17 @@ public:
 		d3d11DevCon->DrawIndexed(numIndex, 0, 0);
 	}
 
-	float getTerrainCollision(D3DXVECTOR2 XZ)
+	// Barycentric surface sample shared by physics and grounded decoration.
+	bool SampleTerrainSurface(D3DXVECTOR2 XZ, D3DXVECTOR3& position, D3DXVECTOR3& normal) const
 	{
-		if (!terrainLoaded) return 0.0f;
+		if (!terrainLoaded) return false;
 		// Terrain world transform is translation only; scale is baked into the mesh.
 		const float extentX = terrainSettings.width * terrainSettings.horizontalScale;
 		const float extentZ = terrainSettings.depth * terrainSettings.horizontalScale;
 		float gx = (XZ.x - World._41) * (tWidth - 1) / extentX;
 		float gz = (XZ.y - World._43) * (tHeight - 1) / extentZ;
 		if (gx < 0 || gz < 0 || gx > tWidth - 1 || gz > tHeight - 1)
-			return World._42; // Outside the terrain: retain the template's base-plane behavior.
+			return false;
 		int x = static_cast<int>(gx), z = static_cast<int>(gz);
 		if (x == tWidth - 1) --x;
 		if (z == tHeight - 1) --z;
@@ -1429,7 +1430,18 @@ public:
 		// Same diagonal as the rendered mesh (a--d), avoiding bilinear mismatch.
 		const float height = v >= u ? h00 + (h11 - h01) * u + (h01 - h00) * v
 			: h00 + (h10 - h00) * u + (h11 - h10) * v;
-		return height + World._42;
+		const D3DXVECTOR3 n00=terrainVertices[a].normal, n11=terrainVertices[a+tWidth+1].normal;
+		normal = v >= u ? n00*(1-v)+terrainVertices[a+tWidth].normal*(v-u)+n11*u
+			: n00*(1-u)+terrainVertices[a+1].normal*(u-v)+n11*v;
+		D3DXVec3Normalize(&normal,&normal);
+		position=D3DXVECTOR3(XZ.x,height+World._42,XZ.y);
+		return true;
+	}
+
+	float getTerrainCollision(D3DXVECTOR2 XZ)
+	{
+		D3DXVECTOR3 position,normal;
+		return SampleTerrainSurface(XZ,position,normal)?position.y:terrainLoaded?World._42:0.0f;
 	}
 
 	D3DXMATRIX getWorldMatrix(){
