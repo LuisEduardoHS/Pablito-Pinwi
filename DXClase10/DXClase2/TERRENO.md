@@ -24,6 +24,34 @@ Los caminos tienen alturas propias y transiciones amplias hacia las laderas:
 no se limitan a pintar una carretera encima de una pendiente impracticable.
 Las pendientes longitudinales del trazado están por debajo del 18 %.
 
+## Vegetación de las praderas
+
+`Vegetation.h` distribuye las tres imágenes originales de `Texturas/Vegetacion/`
+sobre la misma máscara de materiales que utiliza el terreno. Solo admite pasto,
+dejando libres caminos, bordes de grava, roca, pendientes fuertes y objetos.
+La base de cada mata sigue la altura y la inclinación del terreno.
+
+Las posiciones usan una semilla fija: parecen aleatorias y se mantienen entre
+partidas. Hay claros y grupos de distinta densidad, con tamaños, tonos y reflejos
+horizontales variados. Las probabilidades iniciales son 50 % para el pastito
+pequeño, 40 % para el segundo y 10 % para las flores; los arbustos se reducen
+adicionalmente al exigir 10.5 unidades entre ellos. La distribución actual tiene
+11,822 matas pequeñas, 8,164 del segundo tipo y 561 arbustos con flores:
+20,547 elementos en total. Se prueban posiciones cada 3.5 unidades con una
+probabilidad variable del 80 al 100 %, conservando variación y agrupaciones.
+
+Cada candidato revisa el centro y ocho puntos de su huella antes de colocarse.
+Las matas dejan al menos 0.45 unidades libres entre sus radios; si interviene un
+arbusto, dejan 1.1. Los anchos son de 2.1–3.3, 2.4–3.9 y 3.6–5.0 unidades,
+respectivamente. Estos valores, la densidad y la semilla se ajustan en `Scatter`.
+
+Las imágenes conservan sus píxeles y transparencia originales. El shader
+`vegetation.hlsl` omite el margen transparente mediante coordenadas UV y orienta
+las matas hacia la cámara como billboards que giran sobre el eje vertical.
+Reciben la iluminación de día/noche y las sombras de
+los objetos, sin bloquear al jugador ni al vehículo. Se dibujan en hasta tres
+lotes, con descarte fuera de cámara y desvanecimiento entre 260 y 350 unidades.
+
 ## Archivos y regeneración
 
 - `Texturas/Pablito_Valley_513.bmp`: altura de 513 × 513 muestras, BI_RGB32.

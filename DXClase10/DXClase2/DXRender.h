@@ -15,6 +15,7 @@
 #include "InteractionPrompt.h"
 #include "Gameplay/AlchemyScene.h"
 #include "Gameplay/AlchemyHud.h"
+#include "Vegetation.h"
 
 class DXRender
 {
@@ -46,6 +47,7 @@ private:
 	TerrainSettings terrainSettings;
 	SunLight sun;
 	DayNightCycle dayNight;
+	Vegetation vegetation;
 	InteractionPrompt interactionPrompt;
 	Alchemy::Game alchemy;
 	Alchemy::Scene alchemyScene;
@@ -724,6 +726,7 @@ public:
 
 	void ReleaseObjects()
 	{
+		vegetation.Release();
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
 		sun.Release();
@@ -769,6 +772,7 @@ public:
 		UpdateCloudVehicle();
 		UpdateImportedModels(); // Register final object transforms before the first input.
 		if(!alchemyScene.Init(d3d11Device,d3d11DevCon,terreno,pocion,furnace,alchemy))return false;
+		if(!vegetation.Init(d3d11Device,d3d11DevCon,*terreno,terrainSettings))return false;
 		D3DXVECTOR3 Position = playerPosition;
 		D3DXVECTOR3 Target = Position + D3DXVECTOR3(0.0f, 0.0f, 1.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
@@ -982,6 +986,7 @@ public:
 
 		BoundingSphere1->DrawScene(camara);
 		BoundingSphere2->DrawScene(camara);
+		vegetation.Draw(d3d11DevCon,*camara);
 		// Future interactables can use this same renderer with their own anchor/range.
 		if(hasInteractionTarget)
 			interactionPrompt.Draw(*camara,D3DXVECTOR3(interactionTarget.position.x,interactionTarget.position.y+0.5f,interactionTarget.position.z),true,42.0f);

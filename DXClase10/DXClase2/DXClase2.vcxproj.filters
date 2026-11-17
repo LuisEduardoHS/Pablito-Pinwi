@@ -38,6 +38,7 @@
     <ClInclude Include="DayNightCycle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Vegetation.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="InteractionPrompt.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -234,5 +235,9 @@
     </None>
     <None Include="Tools\check_alchemy.cpp"><Filter>Source Files</Filter></None>
     <None Include="JUGABILIDAD.md"><Filter>Resource Files</Filter></None>
+    <None Include="vegetation.hlsl"><Filter>Source Files</Filter></None>
+    <None Include="Texturas\Vegetacion\pastito-noflores.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Vegetacion\pastito-noflores2.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Vegetacion\arbusto-flores.png"><Filter>Resource Files</Filter></None>
   </ItemGroup>
 </Project>
