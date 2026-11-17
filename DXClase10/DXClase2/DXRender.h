@@ -15,6 +15,8 @@
 #include "InteractionPrompt.h"
 #include "Gameplay/AlchemyScene.h"
 #include "Gameplay/AlchemyHud.h"
+#include "Gameplay/GameScreens.h"
+#include "Gameplay/PablitoAnimator.h"
 #include "Vegetation.h"
 
 class DXRender
@@ -52,6 +54,14 @@ private:
 	Alchemy::Game alchemy;
 	Alchemy::Scene alchemyScene;
 	Alchemy::Hud alchemyHud;
+	GameScreens gameScreens;
+	PablitoAnimator pablitoAnimator;
+	MPrimitives* animationTool=nullptr;
+	bool animationToolVisible=false;
+	float visualPlayerYaw=0,carryBlendAge=1;
+	D3DXVECTOR3 carryBlendFrom={0,0,0};
+	GameScreens::Action menuAction=GameScreens::Action::None;
+	bool gameStarted=false,sceneReady=false,gameplayInputActive=false,discardMenuMouse=true;
 	Alchemy::Target interactionTarget;
 	bool hasInteractionTarget=false,dropRequested=false,recipeRequested=false,restartRequested=false;
 	bool windowFocused=false;
@@ -255,7 +265,7 @@ public:
 
 		// Additional models from origin/main. Recenter their exported origins at the base.
 		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi_textured.txt",
-			L"Texturas/pablito_diffuse.png", L"", ShaderDiffuse, true);
+			L"Texturas/pablito_diffuse.png", L"", ShaderDiffuse, true, true);
 		tree = new MPrimitives(d3d11Device, d3d11DevCon, "Models/tree.txt",
 			L"Texturas/tree.png", L"", ShaderDiffuse, true);
 		fence = new MPrimitives(d3d11Device, d3d11DevCon, "Models/fence.txt",
@@ -270,6 +280,9 @@ public:
 			|| !furnace->IsModelLoaded() || !pipe->IsModelLoaded() || !corner_pipe->IsModelLoaded()) return false;
 		// Pablito is the controlled capsule, not an obstacle made from his own mesh.
 		pablito->SetCollisionEnabled(false);
+		if(!pablito->ApplyRigidPose(PablitoRigData::TriangleBones,PablitoRigData::VertexCount,pablitoAnimator.Matrices(),PablitoRigData::BoneCount))return false;
+		animationTool=new MPrimitives(d3d11Device,d3d11DevCon,16,.07f,.07f,1.0f,L"",L"",ShaderDiffuse);
+		animationTool->SetCollisionEnabled(false);if(!animationTool->SetSolidColor(159,113,65))return false;
 
 		BoundingSphere1 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
 		BoundingSphere2 = new MPrimitives(d3d11Device, d3d11DevCon, 32, 32, 1.0f, L"Texturas/escudo.jpg", L"Texturas/escudoNormal.jpg", ShaderDiffuse);
@@ -278,6 +291,7 @@ public:
 		if (!sun.Init(d3d11Device)) return false;
 		if (!interactionPrompt.Init(d3d11Device, d3d11DevCon, L"Texturas/Tecla-E.png")) return false;
 		if (!alchemyHud.Init(d3d11Device,Width,Height)) return false;
+		if (!gameScreens.Init(d3d11Device,Width,Height)) return false;
 		BoundingSphereTranslation = D3DXVECTOR2(0, 0);
 		
 		return true;
@@ -317,10 +331,12 @@ public:
 
 		DIKeyboard->Acquire();
 		DIMouse->Acquire();
+		gameplayInputActive=true;
 
 		DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
 
 		DIKeyboard->GetDeviceState(sizeof(keyboardState),(LPVOID)&keyboardState);
+		if(discardMenuMouse){mouseCurrState={};discardMenuMouse=false;}
 
 		XINPUT_STATE gamepadState = {};
 		const bool gamepadConnected = GetForegroundWindow() == gameWindow
@@ -447,18 +463,133 @@ public:
 
 	void ToggleCameraPerspective()
 	{
-		if (camara && !ridingCloud)
+		if (!IsMenuVisible() && camara && !ridingCloud)
 			camara->TogglePerspective();
 	}
 
 	void RequestCloudInteraction()
 	{
-		cloudInteractionRequested = true;
+		RequestInteraction();
 	}
-	void RequestInteraction() {cloudInteractionRequested=true;}
-	void RequestDrop() {dropRequested=true;}
-	void RequestRecipe() {recipeRequested=true;}
-	void RequestRestart() {restartRequested=true;}
+	void RequestInteraction() {if(!IsMenuVisible())cloudInteractionRequested=true;}
+	void RequestDrop() {if(!IsMenuVisible())dropRequested=true;}
+	void RequestRecipe() {if(!IsMenuVisible())recipeRequested=true;}
+	void RequestRestart() {if(gameStarted && IsMenuVisible())menuAction=GameScreens::Action::Restart;}
+
+	GameScreens::Screen CurrentScreen() const
+	{
+		if(!gameStarted)return GameScreens::Screen::Title;
+		return alchemy.state==Alchemy::MatchState::Victory?GameScreens::Screen::Victory:
+			alchemy.state==Alchemy::MatchState::Defeat?GameScreens::Screen::Defeat:GameScreens::Screen::Gameplay;
+	}
+	bool IsMenuVisible() const {return CurrentScreen()!=GameScreens::Screen::Gameplay;}
+	void HandleMenuKey(WPARAM key)
+	{
+		if(!sceneReady || !IsMenuVisible())return;
+		gameScreens.SetScreen(CurrentScreen());const auto action=gameScreens.Key(key);
+		if(action!=GameScreens::Action::None)menuAction=action;
+	}
+	void HandleMenuPointer(UINT message,int x,int y)
+	{
+		if(!sceneReady || !IsMenuVisible())return;
+		gameScreens.SetScreen(CurrentScreen());RECT client={};GetClientRect(gameWindow,&client);
+		if(message==WM_MOUSEMOVE)gameScreens.PointerMove(x,y,client.right,client.bottom);
+		else if(message==WM_LBUTTONDOWN)gameScreens.PointerDown(x,y,client.right,client.bottom);
+		else if(message==WM_LBUTTONUP)
+		{
+			const auto action=gameScreens.PointerUp(x,y,client.right,client.bottom);
+			if(action!=GameScreens::Action::None)menuAction=action;
+		}
+	}
+	void CancelMenuClick(){gameScreens.CancelClick();}
+	void BeginGameplay(bool restart)
+	{
+		if(restart)
+		{
+			alchemy.Restart();dayNight=DayNightCycle();ridingCloud=false;perspectiveBeforeCloud=true;
+			cloudPosition=D3DXVECTOR3(384,0,384);cloudYaw=0;UpdateCloudVehicle();
+			playerPosition=D3DXVECTOR3(384,terreno->getTerrainCollision(D3DXVECTOR2(384,380)),380);
+			playerGrounded=true;isJumping=false;jumpVelocity=jumpOffset=0;playerYaw=0;
+			if(!camara->IsThirdPerson())camara->TogglePerspective();
+			camara->Yaw=0;camara->Pitch=D3DXToRadian(10);camara->UpdateRotation(0,0);
+		}
+		gameStarted=true;gameScreens.SetScreen(GameScreens::Screen::Gameplay);
+		pablitoAnimator.Reset();visualPlayerYaw=playerYaw;carryBlendAge=1;animationToolVisible=false;
+		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
+		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;jumpWasDown=true;cameraPadWasDown=true;discardMenuMouse=true;
+		frameSeconds=0;lastFrameTime=std::chrono::steady_clock::now();lastClockMinute=lastCloudHint=-1;
+		UpdateImportedModels();UpdatePlayerCamera();UpdateCarriedObject();alchemyScene.Sync(alchemy);RefreshInteractionTarget();alchemyHud.Invalidate();
+	}
+	void UpdateMenu()
+	{
+		gameScreens.SetScreen(CurrentScreen());
+		if(gameplayInputActive){DIMouse->Unacquire();DIKeyboard->Unacquire();gameplayInputActive=false;}
+		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;
+		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
+		if(gameStarted)AnimatePablito(0,0);
+		UpdateClockTitle();
+	}
+
+	static float WrappedAngle(float value)
+	{while(value>D3DX_PI)value-=2*D3DX_PI;while(value< -D3DX_PI)value+=2*D3DX_PI;return value;}
+	void AnimatePablito(float speed,float steering)
+	{
+		PablitoAnimator::Input input;input.speed=speed;input.steering=steering;
+		input.verticalSpeed=jumpVelocity;input.grounded=playerGrounded;input.riding=ridingCloud;input.carrying=alchemy.Carried()!=nullptr;
+		input.lookYaw=WrappedAngle(camara->Yaw-visualPlayerYaw);input.lookPitch=camara->Pitch;
+		input.victory=gameStarted && alchemy.state==Alchemy::MatchState::Victory;input.defeat=gameStarted && alchemy.state==Alchemy::MatchState::Defeat;
+		if(speed<.25f && !input.carrying && !ridingCloud && !IsMenuVisible())
+		{
+			for(unsigned i=0;i<3;++i)
+			{
+				const auto& station=alchemy.layout.stations[i];const float dx=station.x-playerPosition.x,dz=station.z-playerPosition.z;
+				if(dx*dx+dz*dz>4.8f*4.8f)continue;
+				if(i==0 && alchemy.mortar==Alchemy::StationState::Working)input.work=PablitoAnimator::Motion::Grind;
+				if(i==1 && alchemy.batchState==Alchemy::BatchState::Mixing)input.work=PablitoAnimator::Motion::Stir;
+				if(i==2 && alchemy.heating)input.work=PablitoAnimator::Motion::Heat;
+				if(input.work!=PablitoAnimator::Motion::Idle){playerYaw=atan2f(dx,dz);break;}
+			}
+		}
+		const float seconds=windowFocused?frameSeconds:0;
+		visualPlayerYaw+=WrappedAngle(playerYaw-visualPlayerYaw)*(1-expf(-seconds*14));carryBlendAge+=seconds;
+		pablitoAnimator.Update(seconds,input);
+		pablito->ApplyRigidPose(PablitoRigData::TriangleBones,PablitoRigData::VertexCount,pablitoAnimator.Matrices(),PablitoRigData::BoneCount);
+	}
+	void AnimateInteraction(const Alchemy::Game& before,const Alchemy::Target& target)
+	{
+		using Motion=PablitoAnimator::Motion;Motion action=Motion::Nope;
+		if(alchemy.held>=0 && before.held<0)
+		{
+			const auto* item=alchemy.Carried();carryBlendFrom=D3DXVECTOR3(item->position.x,item->position.y,item->position.z);carryBlendAge=0;
+			action=target.kind==Alchemy::TargetKind::Bottler?Motion::Bottle:Motion::Pickup;
+		}
+		else if(before.held>=0 && alchemy.held<0)action=target.kind==Alchemy::TargetKind::Delivery?Motion::Deliver:Motion::Place;
+		else if(before.mortar!=alchemy.mortar && alchemy.mortar==Alchemy::StationState::Working)action=Motion::Grind;
+		else if(before.batchState!=alchemy.batchState && alchemy.batchState==Alchemy::BatchState::Mixing)action=Motion::Stir;
+		else if(before.heating!=alchemy.heating)action=Motion::Heat;
+		if(action!=Motion::Nope)playerYaw=atan2f(target.position.x-playerPosition.x,target.position.z-playerPosition.z);
+		pablitoAnimator.Play(action);
+	}
+	void UpdateAnimationTool()
+	{
+		using Motion=PablitoAnimator::Motion;const auto motion=pablitoAnimator.Current();
+		animationToolVisible=!IsMenuVisible() && (motion==Motion::Grind || motion==Motion::Stir);
+		if(!animationToolVisible)return;
+		const auto& station=alchemy.layout.stations[motion==Motion::Grind?0:1];
+		D3DXVECTOR3 local=pablitoAnimator.ToolHand(),hand;const D3DXMATRIX world=pablito->getWorldMatrix();D3DXVec3TransformCoord(&hand,&local,&world);
+		const float time=pablitoAnimator.Time();D3DXVECTOR3 tip(station.x,station.y-.22f,station.z);
+		if(motion==Motion::Stir){tip.x+=.34f*cosf(time*6.5f);tip.z+=.34f*sinf(time*6.5f);}
+		else tip.y+=.16f*sinf(time*10);
+		D3DXVECTOR3 axis=tip-hand;const float length=D3DXVec3Length(&axis);
+		if(length<.05f || length>3.5f){animationToolVisible=false;return;}axis/=length;
+		D3DXVECTOR3 reference=fabsf(axis.z)>.95f?D3DXVECTOR3(1,0,0):D3DXVECTOR3(0,0,1),right,forward;
+		D3DXVec3Cross(&right,&axis,&reference);D3DXVec3Normalize(&right,&right);D3DXVec3Cross(&forward,&right,&axis);
+		D3DXMATRIX rotation,scale,translation;D3DXMatrixIdentity(&rotation);
+		rotation._11=right.x;rotation._12=right.y;rotation._13=right.z;rotation._21=axis.x;rotation._22=axis.y;rotation._23=axis.z;
+		rotation._31=forward.x;rotation._32=forward.y;rotation._33=forward.z;
+		D3DXMatrixScaling(&scale,1,length,1);D3DXVECTOR3 center=(hand+tip)*.5f;D3DXMatrixTranslation(&translation,center.x,center.y,center.z);
+		animationTool->UpdateScene(scale*rotation*translation);
+	}
 
 	void RefreshInteractionTarget()
 	{
@@ -492,7 +623,7 @@ public:
 			if(SceneCollision::Raycast(playerPosition+D3DXVECTOR3(0,PlayerHeight()*0.7f,0),point,hit,ridingCloud?cloudVehicleMesh->GetCollider():NULL))continue;
 			D3DXVECTOR3 bottom=point-D3DXVECTOR3(0,offset,0);
 			if(!SceneCollision::CapsuleFree(bottom,0.6f,0.25f,ridingCloud?cloudVehicleMesh->GetCollider():NULL))continue;
-			alchemy.Drop({point.x,point.y,point.z});return;
+			alchemy.Drop({point.x,point.y,point.z});pablitoAnimator.Play(PablitoAnimator::Motion::Drop);return;
 		}
 		alchemy.message=L"No hay espacio libre para soltar aquí. Muévete un poco.";alchemy.messageSeconds=4;
 	}
@@ -501,13 +632,7 @@ public:
 	{
 		if(GetForegroundWindow()==gameWindow)
 		{
-			if(recipeRequested)alchemy.showRecipe=!alchemy.showRecipe;
-			if(restartRequested && alchemy.state!=Alchemy::MatchState::Playing)
-			{
-				alchemy.Restart();ridingCloud=false;cloudPosition=D3DXVECTOR3(384,0,384);cloudYaw=0;UpdateCloudVehicle();
-				playerPosition=D3DXVECTOR3(384,terreno->getTerrainCollision(D3DXVECTOR2(384,380)),380);
-				playerGrounded=true;isJumping=false;jumpVelocity=jumpOffset=0;playerYaw=0;
-			}
+			if(recipeRequested){alchemy.showRecipe=!alchemy.showRecipe;if(alchemy.showRecipe)pablitoAnimator.Play(PablitoAnimator::Motion::Read);}
 			RefreshInteractionTarget();
 			if(cloudInteractionRequested && alchemy.state==Alchemy::MatchState::Playing)
 			{
@@ -515,7 +640,7 @@ public:
 				else if(hasInteractionTarget)
 				{
 					if(interactionTarget.kind==Alchemy::TargetKind::Cloud)ToggleCloudVehicle();
-					else alchemy.Interact(interactionTarget);
+					else {const Alchemy::Game before=alchemy;alchemy.Interact(interactionTarget);AnimateInteraction(before,interactionTarget);}
 				}
 			}
 			if(dropRequested)DropCarriedObject();
@@ -527,8 +652,15 @@ public:
 	void UpdateCarriedObject()
 	{
 		D3DXVECTOR3 point;
-		if(camara->IsThirdPerson()) point=playerPosition+D3DXVECTOR3(sinf(playerYaw)*0.8f+cosf(playerYaw)*1.8f,2.0f,cosf(playerYaw)*0.8f-sinf(playerYaw)*1.8f);
-		else point=camara->Position+camara->Forward*2.5f+camara->Right*0.75f-D3DXVECTOR3(0,0.65f,0);
+		if(camara->IsThirdPerson())
+		{const D3DXVECTOR3 grip=pablitoAnimator.Grip();const D3DXMATRIX world=pablito->getWorldMatrix();D3DXVec3TransformCoord(&point,&grip,&world);}
+		else
+		{
+			D3DXVECTOR3 look=camara->Target-camara->Position;D3DXVec3Normalize(&look,&look);
+			point=camara->Position+look*1.6f+camara->Right*.45f-D3DXVECTOR3(0,.65f-.02f*sinf(pablitoAnimator.Time()*8),0);
+		}
+		if(camara->IsThirdPerson() && carryBlendAge<.45f)
+		{const float t=SceneCollision::Clamp(carryBlendAge/.45f),smooth=t*t*(3-2*t);point=carryBlendFrom+(point-carryBlendFrom)*smooth;}
 		alchemy.UpdateCarry({point.x,point.y,point.z},camara->IsThirdPerson()?playerYaw:camara->Yaw);
 	}
 
@@ -547,6 +679,7 @@ public:
 	void ToggleCloudVehicle()
 	{
 		if (!camara) return;
+		const D3DXVECTOR3 previousVisualFeet=playerPosition+pablitoAnimator.TransitionOffset();
 		if (ridingCloud)
 		{
 			D3DXVECTOR3 landing;
@@ -568,6 +701,7 @@ public:
 		isJumping = false;
 		jumpVelocity = jumpOffset = 0.0f;
 		playerGrounded = true;
+		pablitoAnimator.Play(ridingCloud?PablitoAnimator::Motion::Mount:PablitoAnimator::Motion::Dismount,previousVisualFeet-playerPosition);
 		lastCloudHint = -1;
 	}
 
@@ -705,12 +839,18 @@ public:
 
 	void ToggleDayNightPause()
 	{
+		if(IsMenuVisible())return;
 		dayNight.paused = !dayNight.paused;
 		lastClockMinute = -1;
 	}
 
 	void UpdateClockTitle()
 	{
+		if(IsMenuVisible())
+		{
+			if(lastClockMinute!=-2){SetWindowTextW(gameWindow,L"Pablito Pinwi");lastClockMinute=-2;}
+			return;
+		}
 		const int minute = static_cast<int>(dayNight.hour * 60.0) % (24 * 60);
 		const int cloudHint = ridingCloud ? 2 : (CanMountCloudVehicle() ? 1 : 0);
 		if (minute == lastClockMinute && cloudHint == lastCloudHint) return;
@@ -726,11 +866,12 @@ public:
 
 	void ReleaseObjects()
 	{
+		gameScreens.Release();
 		vegetation.Release();
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
 		sun.Release();
-		MPrimitives* models[] = { terreno,casa,mesa,pocion,pablito,cloudVehicleMesh,tree,fence,
+		MPrimitives* models[] = { terreno,casa,mesa,pocion,pablito,animationTool,cloudVehicleMesh,tree,fence,
 			furnace,pipe,corner_pipe,cubo,esfera,toroide,cono,cilindro,billboard,skydomo,BoundingSphere1,BoundingSphere2 };
 		for (MPrimitives* model : models)
 		{
@@ -784,6 +925,7 @@ public:
 		UpdateClockTitle();
 		RefreshInteractionTarget();
 
+		sceneReady=true;
 		return true;
 	}
 
@@ -817,8 +959,9 @@ public:
 
 		// The exported mesh faces +X. Rotate it to the player's horizontal heading.
 		D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
-		D3DXMatrixRotationY(&rotation, playerYaw - D3DX_PI * 0.5f);
-		D3DXMatrixTranslation(&translation, playerPosition.x, playerPosition.y, playerPosition.z);
+		D3DXMatrixRotationY(&rotation, visualPlayerYaw - D3DX_PI * 0.5f);
+		const D3DXVECTOR3 visualFeet=playerPosition+pablitoAnimator.TransitionOffset();
+		D3DXMatrixTranslation(&translation, visualFeet.x, visualFeet.y, visualFeet.z);
 		pablito->UpdateScene(scaling * rotation * translation);
 		PlaceModel(tree, 360.0f, 438.0f, treeScale);
 		PlaceModel(fence, 403.0f, 427.0f, fenceScale);
@@ -831,7 +974,7 @@ public:
 	{
 		if (ridingCloud && !camara->IsThirdPerson()) camara->TogglePerspective();
 		const float playerHeight = pablito->GetModelHeight() * pablitoScale;
-		const D3DXVECTOR3 eyes = playerPosition + D3DXVECTOR3(0, playerHeight * 0.86f, 0);
+		const D3DXVECTOR3 eyes = playerPosition+pablitoAnimator.TransitionOffset()+D3DXVECTOR3(0, playerHeight * 0.86f, 0);
 		const float followDistance = ridingCloud ? fmaxf(playerHeight * 2.5f, cloudSize.z * 2.0f) : playerHeight * 2.5f;
 		camara->FollowPlayer(eyes, followDistance);
 		if (camara->IsThirdPerson())
@@ -863,7 +1006,7 @@ public:
 	void UpdateScene()
 	{
 		const auto now = std::chrono::steady_clock::now();
-		const double elapsedSeconds = std::chrono::duration<double>(now - lastFrameTime).count();
+		double elapsedSeconds = std::chrono::duration<double>(now - lastFrameTime).count();
 		frameSeconds = static_cast<float>(elapsedSeconds);
 		lastFrameTime = now;
 		// Evita avances bruscos al pausar o arrastrar la ventana.
@@ -871,9 +1014,19 @@ public:
 			frameSeconds = 0.05f;
 		// Input, player physics, model transforms and cameras use this same frame.
 		windowFocused=GetForegroundWindow()==gameWindow;
+		const auto action=menuAction;menuAction=GameScreens::Action::None;
+		if(windowFocused && IsMenuVisible())
+		{
+			if(action==GameScreens::Action::Exit && gameStarted){PostMessageW(gameWindow,WM_CLOSE,0,0);UpdateMenu();return;}
+			if((action==GameScreens::Action::Start && !gameStarted) || (action==GameScreens::Action::Restart && gameStarted))
+			{BeginGameplay(gameStarted);elapsedSeconds=0;}
+		}
+		if(IsMenuVisible()){UpdateMenu();return;}
 		if(windowFocused)alchemy.Tick(static_cast<float>(elapsedSeconds));
+		if(IsMenuVisible()){UpdateMenu();return;}
 		UpdateImportedModels();
 		DetectInput();
+		if(IsMenuVisible()){UpdateMenu();return;}
 		// The clock uses elapsed real time even when movement needs a capped step.
 		dayNight.Advance(elapsedSeconds * (fastForwardTime ? 30.0 : 1.0));
 
@@ -915,10 +1068,15 @@ public:
 		D3DXMatrixTranslation(&terrMat, terrainSettings.position.x,
 			terrainSettings.position.y, terrainSettings.position.z);
 		terreno->UpdateScene(terrMat);
+		const D3DXVECTOR3 previousFeet=playerPosition;const float previousHeading=cloudYaw;
 		if(ridingCloud) MoveCloud(requestedMovement);
 		else {MovePlayer(requestedMovement,frameSeconds);UpdateCloudVehicle();}
+		const D3DXVECTOR3 traveled=playerPosition-previousFeet;
+		const float speed=frameSeconds>0?sqrtf(traveled.x*traveled.x+traveled.z*traveled.z)/frameSeconds:0;
+		AnimatePablito(speed,frameSeconds>0?WrappedAngle(cloudYaw-previousHeading)/frameSeconds/3:0);
 		UpdatePlayerCamera();
 		UpdateImportedModels();
+		UpdateAnimationTool();
 		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
 		UpdateClockTitle();
 		UpdateCarriedObject();alchemyScene.Sync(alchemy);RefreshInteractionTarget();
@@ -940,8 +1098,30 @@ public:
 		DummyBoundyEvents.y = 0;
 	}
 
+	void DrawResultCharacter()
+	{
+		if(!gameStarted)return;
+		D3D11_VIEWPORT viewport={};UINT count=1;d3d11DevCon->RSGetViewports(&count,&viewport);if(!count)return;
+		D3D11_VIEWPORT preview=viewport;preview.TopLeftX=viewport.Width*.01f;preview.TopLeftY=viewport.Height*.16f;
+		preview.Width=viewport.Width*.28f;preview.Height=viewport.Height*.72f;
+		d3d11DevCon->RSSetViewports(1,&preview);
+		d3d11DevCon->ClearDepthStencilView(depthStencilView,D3D11_CLEAR_DEPTH,1,0);sun.Bind(d3d11DevCon);
+		Camara camera(D3DXVECTOR3(6,3.1f,5.8f),D3DXVECTOR3(0,1.65f,0),D3DXVECTOR3(0,1,0),static_cast<int>(preview.Width),static_cast<int>(preview.Height));
+		const D3DXMATRIX original=pablito->getWorldMatrix();D3DXMATRIX world;D3DXMatrixIdentity(&world);
+		pablito->UpdateScene(world);pablito->DrawScene(&camera);pablito->UpdateScene(original);
+		d3d11DevCon->RSSetViewports(1,&viewport);
+	}
+
 	void DrawScene()
 	{
+		if(IsMenuVisible())
+		{
+			gameScreens.SetScreen(CurrentScreen());
+			d3d11DevCon->ClearRenderTargetView(renderTargetView,D3DXCOLOR(0,0,0,1));
+			gameScreens.Draw(d3d11Device,d3d11DevCon,interactionPrompt,alchemy.successes,alchemy.failures);
+			DrawResultCharacter();
+			SwapChain->Present(1, 0);return;
+		}
 		// Real silhouettes, including Pablito when his mesh is hidden in first person.
 		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pablito, cloudVehicleMesh, tree,
 			fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,
@@ -950,6 +1130,7 @@ public:
 		for (MPrimitives* model : shadowCasters)
 			model->DrawShadow(sun.GetViewProjection());
 		alchemyScene.DrawShadow(alchemy,sun.GetViewProjection());
+		if(animationToolVisible)animationTool->DrawShadow(sun.GetViewProjection());
 		sun.EndShadowPass(d3d11DevCon);
 		sun.Bind(d3d11DevCon);
 		//Clear our backbuffer to the updated color
@@ -971,6 +1152,7 @@ public:
 		casa->DrawScene(camara);
 		mesa->DrawScene(camara);
 		alchemyScene.Draw(alchemy,camara);
+		if(animationToolVisible)animationTool->DrawScene(camara);
 		cloudVehicleMesh->DrawScene(camara);
 		// Keep his world transform and shadow in first person, but hide the mesh.
 		if (camara->IsThirdPerson())

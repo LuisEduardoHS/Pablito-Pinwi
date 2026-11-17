@@ -119,7 +119,7 @@ bool InitializeWindow(HINSTANCE hInstance,
 	hwnd = CreateWindowEx(
 		NULL,
 		WndClassName,
-		L"Plantilla dx11",
+		L"Pablito Pinwi",
 		WS_OVERLAPPEDWINDOW,
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		width, height,
@@ -181,6 +181,12 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 	switch (msg)
 	{
 	case WM_KEYDOWN:
+		if(dxrender && dxrender->IsMenuVisible())
+		{
+			if(wParam==VK_ESCAPE)DestroyWindow(hwnd);
+			else if((lParam & (1L<<30))==0)dxrender->HandleMenuKey(wParam);
+			return 0;
+		}
 		// Bit 30 marks auto-repeat: one camera change per physical C press.
 		if (wParam == 'C' && (lParam & (1L << 30)) == 0)
 			dxrender->ToggleCameraPerspective();
@@ -198,6 +204,26 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 			DestroyWindow(hwnd);
 		}
 		return 0;
+
+	case WM_MOUSEMOVE:
+	case WM_LBUTTONDOWN:
+	case WM_LBUTTONUP:
+		if(dxrender && dxrender->IsMenuVisible())
+		{
+			if(msg==WM_LBUTTONDOWN)SetCapture(hwnd);
+			dxrender->HandleMenuPointer(msg,static_cast<short>(LOWORD(lParam)),static_cast<short>(HIWORD(lParam)));
+			if(msg==WM_LBUTTONUP && GetCapture()==hwnd)ReleaseCapture();
+			return 0;
+		}
+		break;
+	case WM_CAPTURECHANGED:
+	case WM_KILLFOCUS:
+		if(dxrender)dxrender->CancelMenuClick();
+		break;
+	case WM_SETCURSOR:
+		if(dxrender && dxrender->IsMenuVisible() && LOWORD(lParam)==HTCLIENT)
+		{SetCursor(LoadCursor(nullptr,IDC_ARROW));return TRUE;}
+		break;
 
 	case WM_DESTROY:
 		PostQuitMessage(0);

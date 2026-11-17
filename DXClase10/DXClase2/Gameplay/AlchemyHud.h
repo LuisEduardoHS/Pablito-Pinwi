@@ -12,7 +12,7 @@ class Hud
     enum : COLORREF { Ink=RGB(225,223,214), Muted=RGB(166,184,193), Warning=RGB(220,158,143), Shadow=RGB(8,11,14) };
     ID3D11Texture2D* texture=nullptr;ID3D11ShaderResourceView* view=nullptr;
     HDC dc=nullptr;HBITMAP bitmap=nullptr;HGDIOBJ previousBitmap=nullptr;
-    HFONT font=nullptr,titleFont=nullptr,smallFont=nullptr,heroFont=nullptr;
+    HFONT font=nullptr,titleFont=nullptr,smallFont=nullptr;
     unsigned char* pixels=nullptr;int width=0,height=0;
     float refresh=0,noticeAge=0,recipeAge=0,lastNoticeSeconds=0;
     bool recipeWasOpen=false;int lastOrder=-1;std::wstring lastNotice,lastRecipe;
@@ -108,13 +108,6 @@ class Hud
         if(text.empty())text=game.showRecipe?L"[R] Ocultar receta":L"[R] Ver receta";
         Center(18,height-56,width-36,24,text);Center(18,height-28,width-36,18,L"R receta   Q soltar   C cámara",Muted,smallFont);
     }
-    void DrawResult(const Game& game)
-    {
-        const bool won=game.state==MatchState::Victory;const int y=height/2-50;
-        Center(18,y,width-36,32,won?L"PEDIDOS COMPLETADOS":L"FIN DE LA JORNADA",Ink,heroFont);
-        Center(18,y+45,width-36,24,std::to_wstring(game.successes)+L" entregas / "+std::to_wstring(game.failures)+L" fallos",Muted);
-        Center(18,y+92,width-36,24,L"[ENTER] Volver al taller");
-    }
     bool Resize(ID3D11Device* device,int w,int h)
     {
         Release();width=w;height=h;dc=CreateCompatibleDC(nullptr);BITMAPINFO info={};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
@@ -122,7 +115,7 @@ class Hud
         void* data=nullptr;bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&data,nullptr,0);pixels=static_cast<unsigned char*>(data);
         if(!dc || !bitmap || !pixels)return false;previousBitmap=SelectObject(dc,bitmap);SetBkMode(dc,TRANSPARENT);
         auto makeFont=[](int size){return CreateFontW(-size,0,0,0,FW_BOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,NONANTIALIASED_QUALITY,FIXED_PITCH|FF_MODERN,L"Courier New");};
-        font=makeFont(14);titleFont=makeFont(16);smallFont=makeFont(12);heroFont=makeFont(24);
+        font=makeFont(14);titleFont=makeFont(16);smallFont=makeFont(12);
         D3D11_TEXTURE2D_DESC desc={};desc.Width=w;desc.Height=h;desc.MipLevels=desc.ArraySize=1;desc.Format=DXGI_FORMAT_R8G8B8A8_UNORM;desc.SampleDesc.Count=1;desc.Usage=D3D11_USAGE_DEFAULT;desc.BindFlags=D3D11_BIND_SHADER_RESOURCE;
         return SUCCEEDED(device->CreateTexture2D(&desc,nullptr,&texture)) && SUCCEEDED(device->CreateShaderResourceView(texture,nullptr,&view));
     }
@@ -131,6 +124,7 @@ public:
     bool Init(ID3D11Device* device,int w,int h){return Resize(device,w,h);}
     void Draw(ID3D11Device* device,ID3D11DeviceContext* context,InteractionPrompt& renderer,const Game& game,const std::wstring& action,bool focused,float seconds,const Target* target=nullptr)
     {
+        if(game.state!=MatchState::Playing)return;
         D3D11_VIEWPORT viewport={};UINT count=1;context->RSGetViewports(&count,&viewport);if(!count)return;
         if(static_cast<int>(viewport.Width)!=width || static_cast<int>(viewport.Height)!=height)if(!Resize(device,static_cast<int>(viewport.Width),static_cast<int>(viewport.Height)))return;
         if(lastNotice!=game.message || game.messageSeconds>lastNoticeSeconds+0.1f){lastNotice=game.message;noticeAge=0;refresh=0;}lastNoticeSeconds=game.messageSeconds;
@@ -147,7 +141,6 @@ public:
                 if(game.messageSeconds>0 && game.message.find(L"Llevas ")!=0)Text(18,height-119,(std::min)(520,width-36),48,L"> "+Reveal(game.message,noticeAge,48),Muted);
                 if(!focused)Center(18,16,width-36,18,L"PAUSA",Muted,smallFont);
             }
-            else DrawResult(game);
             GdiFlush();
             for(size_t i=0;i<static_cast<size_t>(width)*height;++i)
             {
@@ -163,8 +156,8 @@ public:
     {
         if(view){view->Release();view=nullptr;}if(texture){texture->Release();texture=nullptr;}
         if(dc && previousBitmap)SelectObject(dc,previousBitmap);
-        if(bitmap)DeleteObject(bitmap);if(font)DeleteObject(font);if(titleFont)DeleteObject(titleFont);if(smallFont)DeleteObject(smallFont);if(heroFont)DeleteObject(heroFont);if(dc)DeleteDC(dc);
-        dc=nullptr;bitmap=nullptr;font=titleFont=smallFont=heroFont=nullptr;previousBitmap=nullptr;pixels=nullptr;width=height=0;refresh=0;
+        if(bitmap)DeleteObject(bitmap);if(font)DeleteObject(font);if(titleFont)DeleteObject(titleFont);if(smallFont)DeleteObject(smallFont);if(dc)DeleteDC(dc);
+        dc=nullptr;bitmap=nullptr;font=titleFont=smallFont=nullptr;previousBitmap=nullptr;pixels=nullptr;width=height=0;refresh=0;
     }
 };
 }

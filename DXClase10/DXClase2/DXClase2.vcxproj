@@ -108,6 +108,9 @@
     <ClInclude Include="Gameplay\AlchemyGame.h" />
     <ClInclude Include="Gameplay\AlchemyScene.h" />
     <ClInclude Include="Gameplay\AlchemyHud.h" />
+    <ClInclude Include="Gameplay\GameScreens.h" />
+    <ClInclude Include="Gameplay\PablitoAnimator.h" />
+    <ClInclude Include="Gameplay\PablitoRigData.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Texturas\PablitoPinwi_Heightmap_256.bmp" />
@@ -135,6 +138,9 @@
     <None Include="Tools\check_scene_collision.cpp" />
     <None Include="Tools\check_alchemy.cpp" />
     <None Include="JUGABILIDAD.md" />
+    <None Include="ANIMACIONES.md" />
+    <None Include="Tools\rig_pablito.py" />
+    <None Include="Tools\check_pablito_animation.cpp" />
     <None Include="pixelShaderMultitextura.ps" />
     <None Include="vegetation.hlsl" />
     <None Include="Texturas\Vegetacion\pastito-noflores.png" />
