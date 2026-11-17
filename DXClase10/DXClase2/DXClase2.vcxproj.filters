@@ -49,6 +49,7 @@
     <ClInclude Include="Gameplay\AlchemyGame.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Gameplay\AlchemyScene.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Gameplay\AlchemyHud.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Gameplay\GameScreens.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="MeshPrimitives.h">
       <Filter>Header Files</Filter>
     </ClInclude>

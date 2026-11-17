@@ -108,6 +108,7 @@
     <ClInclude Include="Gameplay\AlchemyGame.h" />
     <ClInclude Include="Gameplay\AlchemyScene.h" />
     <ClInclude Include="Gameplay\AlchemyHud.h" />
+    <ClInclude Include="Gameplay\GameScreens.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Texturas\PablitoPinwi_Heightmap_256.bmp" />

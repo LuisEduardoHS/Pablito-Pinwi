@@ -15,6 +15,7 @@
 #include "InteractionPrompt.h"
 #include "Gameplay/AlchemyScene.h"
 #include "Gameplay/AlchemyHud.h"
+#include "Gameplay/GameScreens.h"
 #include "Vegetation.h"
 
 class DXRender
@@ -52,6 +53,9 @@ private:
 	Alchemy::Game alchemy;
 	Alchemy::Scene alchemyScene;
 	Alchemy::Hud alchemyHud;
+	GameScreens gameScreens;
+	GameScreens::Action menuAction=GameScreens::Action::None;
+	bool gameStarted=false,sceneReady=false,gameplayInputActive=false,discardMenuMouse=true;
 	Alchemy::Target interactionTarget;
 	bool hasInteractionTarget=false,dropRequested=false,recipeRequested=false,restartRequested=false;
 	bool windowFocused=false;
@@ -278,6 +282,7 @@ public:
 		if (!sun.Init(d3d11Device)) return false;
 		if (!interactionPrompt.Init(d3d11Device, d3d11DevCon, L"Texturas/Tecla-E.png")) return false;
 		if (!alchemyHud.Init(d3d11Device,Width,Height)) return false;
+		if (!gameScreens.Init(d3d11Device,Width,Height)) return false;
 		BoundingSphereTranslation = D3DXVECTOR2(0, 0);
 		
 		return true;
@@ -317,10 +322,12 @@ public:
 
 		DIKeyboard->Acquire();
 		DIMouse->Acquire();
+		gameplayInputActive=true;
 
 		DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &mouseCurrState);
 
 		DIKeyboard->GetDeviceState(sizeof(keyboardState),(LPVOID)&keyboardState);
+		if(discardMenuMouse){mouseCurrState={};discardMenuMouse=false;}
 
 		XINPUT_STATE gamepadState = {};
 		const bool gamepadConnected = GetForegroundWindow() == gameWindow
@@ -447,18 +454,70 @@ public:
 
 	void ToggleCameraPerspective()
 	{
-		if (camara && !ridingCloud)
+		if (!IsMenuVisible() && camara && !ridingCloud)
 			camara->TogglePerspective();
 	}
 
 	void RequestCloudInteraction()
 	{
-		cloudInteractionRequested = true;
+		RequestInteraction();
 	}
-	void RequestInteraction() {cloudInteractionRequested=true;}
-	void RequestDrop() {dropRequested=true;}
-	void RequestRecipe() {recipeRequested=true;}
-	void RequestRestart() {restartRequested=true;}
+	void RequestInteraction() {if(!IsMenuVisible())cloudInteractionRequested=true;}
+	void RequestDrop() {if(!IsMenuVisible())dropRequested=true;}
+	void RequestRecipe() {if(!IsMenuVisible())recipeRequested=true;}
+	void RequestRestart() {if(gameStarted && IsMenuVisible())menuAction=GameScreens::Action::Restart;}
+
+	GameScreens::Screen CurrentScreen() const
+	{
+		if(!gameStarted)return GameScreens::Screen::Title;
+		return alchemy.state==Alchemy::MatchState::Victory?GameScreens::Screen::Victory:
+			alchemy.state==Alchemy::MatchState::Defeat?GameScreens::Screen::Defeat:GameScreens::Screen::Gameplay;
+	}
+	bool IsMenuVisible() const {return CurrentScreen()!=GameScreens::Screen::Gameplay;}
+	void HandleMenuKey(WPARAM key)
+	{
+		if(!sceneReady || !IsMenuVisible())return;
+		gameScreens.SetScreen(CurrentScreen());const auto action=gameScreens.Key(key);
+		if(action!=GameScreens::Action::None)menuAction=action;
+	}
+	void HandleMenuPointer(UINT message,int x,int y)
+	{
+		if(!sceneReady || !IsMenuVisible())return;
+		gameScreens.SetScreen(CurrentScreen());RECT client={};GetClientRect(gameWindow,&client);
+		if(message==WM_MOUSEMOVE)gameScreens.PointerMove(x,y,client.right,client.bottom);
+		else if(message==WM_LBUTTONDOWN)gameScreens.PointerDown(x,y,client.right,client.bottom);
+		else if(message==WM_LBUTTONUP)
+		{
+			const auto action=gameScreens.PointerUp(x,y,client.right,client.bottom);
+			if(action!=GameScreens::Action::None)menuAction=action;
+		}
+	}
+	void CancelMenuClick(){gameScreens.CancelClick();}
+	void BeginGameplay(bool restart)
+	{
+		if(restart)
+		{
+			alchemy.Restart();dayNight=DayNightCycle();ridingCloud=false;perspectiveBeforeCloud=true;
+			cloudPosition=D3DXVECTOR3(384,0,384);cloudYaw=0;UpdateCloudVehicle();
+			playerPosition=D3DXVECTOR3(384,terreno->getTerrainCollision(D3DXVECTOR2(384,380)),380);
+			playerGrounded=true;isJumping=false;jumpVelocity=jumpOffset=0;playerYaw=0;
+			if(!camara->IsThirdPerson())camara->TogglePerspective();
+			camara->Yaw=0;camara->Pitch=D3DXToRadian(10);camara->UpdateRotation(0,0);
+		}
+		gameStarted=true;gameScreens.SetScreen(GameScreens::Screen::Gameplay);
+		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
+		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;jumpWasDown=true;cameraPadWasDown=true;discardMenuMouse=true;
+		frameSeconds=0;lastFrameTime=std::chrono::steady_clock::now();lastClockMinute=lastCloudHint=-1;
+		UpdateImportedModels();UpdatePlayerCamera();UpdateCarriedObject();alchemyScene.Sync(alchemy);RefreshInteractionTarget();alchemyHud.Invalidate();
+	}
+	void UpdateMenu()
+	{
+		gameScreens.SetScreen(CurrentScreen());
+		if(gameplayInputActive){DIMouse->Unacquire();DIKeyboard->Unacquire();gameplayInputActive=false;}
+		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;
+		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
+		UpdateClockTitle();
+	}
 
 	void RefreshInteractionTarget()
 	{
@@ -502,12 +561,6 @@ public:
 		if(GetForegroundWindow()==gameWindow)
 		{
 			if(recipeRequested)alchemy.showRecipe=!alchemy.showRecipe;
-			if(restartRequested && alchemy.state!=Alchemy::MatchState::Playing)
-			{
-				alchemy.Restart();ridingCloud=false;cloudPosition=D3DXVECTOR3(384,0,384);cloudYaw=0;UpdateCloudVehicle();
-				playerPosition=D3DXVECTOR3(384,terreno->getTerrainCollision(D3DXVECTOR2(384,380)),380);
-				playerGrounded=true;isJumping=false;jumpVelocity=jumpOffset=0;playerYaw=0;
-			}
 			RefreshInteractionTarget();
 			if(cloudInteractionRequested && alchemy.state==Alchemy::MatchState::Playing)
 			{
@@ -705,12 +758,18 @@ public:
 
 	void ToggleDayNightPause()
 	{
+		if(IsMenuVisible())return;
 		dayNight.paused = !dayNight.paused;
 		lastClockMinute = -1;
 	}
 
 	void UpdateClockTitle()
 	{
+		if(IsMenuVisible())
+		{
+			if(lastClockMinute!=-2){SetWindowTextW(gameWindow,L"Pablito Pinwi");lastClockMinute=-2;}
+			return;
+		}
 		const int minute = static_cast<int>(dayNight.hour * 60.0) % (24 * 60);
 		const int cloudHint = ridingCloud ? 2 : (CanMountCloudVehicle() ? 1 : 0);
 		if (minute == lastClockMinute && cloudHint == lastCloudHint) return;
@@ -726,6 +785,7 @@ public:
 
 	void ReleaseObjects()
 	{
+		gameScreens.Release();
 		vegetation.Release();
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
@@ -784,6 +844,7 @@ public:
 		UpdateClockTitle();
 		RefreshInteractionTarget();
 
+		sceneReady=true;
 		return true;
 	}
 
@@ -863,7 +924,7 @@ public:
 	void UpdateScene()
 	{
 		const auto now = std::chrono::steady_clock::now();
-		const double elapsedSeconds = std::chrono::duration<double>(now - lastFrameTime).count();
+		double elapsedSeconds = std::chrono::duration<double>(now - lastFrameTime).count();
 		frameSeconds = static_cast<float>(elapsedSeconds);
 		lastFrameTime = now;
 		// Evita avances bruscos al pausar o arrastrar la ventana.
@@ -871,9 +932,19 @@ public:
 			frameSeconds = 0.05f;
 		// Input, player physics, model transforms and cameras use this same frame.
 		windowFocused=GetForegroundWindow()==gameWindow;
+		const auto action=menuAction;menuAction=GameScreens::Action::None;
+		if(windowFocused && IsMenuVisible())
+		{
+			if(action==GameScreens::Action::Exit && gameStarted){PostMessageW(gameWindow,WM_CLOSE,0,0);UpdateMenu();return;}
+			if((action==GameScreens::Action::Start && !gameStarted) || (action==GameScreens::Action::Restart && gameStarted))
+			{BeginGameplay(gameStarted);elapsedSeconds=0;}
+		}
+		if(IsMenuVisible()){UpdateMenu();return;}
 		if(windowFocused)alchemy.Tick(static_cast<float>(elapsedSeconds));
+		if(IsMenuVisible()){UpdateMenu();return;}
 		UpdateImportedModels();
 		DetectInput();
+		if(IsMenuVisible()){UpdateMenu();return;}
 		// The clock uses elapsed real time even when movement needs a capped step.
 		dayNight.Advance(elapsedSeconds * (fastForwardTime ? 30.0 : 1.0));
 
@@ -942,6 +1013,13 @@ public:
 
 	void DrawScene()
 	{
+		if(IsMenuVisible())
+		{
+			gameScreens.SetScreen(CurrentScreen());
+			d3d11DevCon->ClearRenderTargetView(renderTargetView,D3DXCOLOR(0,0,0,1));
+			gameScreens.Draw(d3d11Device,d3d11DevCon,interactionPrompt,alchemy.successes,alchemy.failures);
+			SwapChain->Present(0, 0);return;
+		}
 		// Real silhouettes, including Pablito when his mesh is hidden in first person.
 		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pablito, cloudVehicleMesh, tree,
 			fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,

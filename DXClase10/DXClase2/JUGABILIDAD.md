@@ -53,14 +53,15 @@ cuadriláteros del icono E. No usa ventanas MessageBox para los resultados.
 | E | Una interacción contextual: recoger, colocar, operar, entregar o nube |
 | Q | Soltar el objeto en una superficie libre cercana |
 | R | Mostrar/ocultar la receta |
-| Enter | Reiniciar después de victoria o derrota |
+| Clic / Enter / Espacio | Activar el botón del menú |
+| Tab / flechas | Cambiar de botón en los menús |
 | C / D-pad arriba | Primera/tercera persona; bloqueada al conducir |
 | Shift / L3 | Correr |
 | Espacio / A | Saltar a pie |
 | F6 / F7 | Mantener los controles anteriores de día/noche |
 | Esc | Cerrar |
 
-Las acciones E/Q/R/Enter descartan la repetición de `WM_KEYDOWN`. Una pulsación
+Las acciones E/Q/R y las teclas de menú descartan la repetición de `WM_KEYDOWN`. Una pulsación
 de E elige un solo candidato por alcance, distancia, altura, orientación y
 visibilidad. Al conducir, E se reserva para bajar. Se puede llevar un objeto
 en la nube. El tiempo del pedido y las operaciones se pausan cuando la ventana
@@ -146,17 +147,36 @@ configurables en `Recipe` y `Rules`.
   entrega con calidad, receta, pedido o destino incorrectos.
 - El mismo pedido solo puede cerrarse una vez. La espera entre pedidos no
   vuelve a procesar ni contabilizar el fallo anterior.
-- La entrega retira la poción. Enter tras el resultado reinicia contadores,
-  pedido, objetos, estaciones y posiciones iniciales de Pablito/nube.
+- La entrega retira la poción. El botón Reiniciar del resultado restablece
+  contadores, pedido, objetos, estaciones, posiciones de Pablito/nube,
+  cámara en tercera persona y reloj a las 09:00.
+
+## Inicio y pantallas de resultado
+
+Cada ejecución abre una pantalla provisional con el título Pablito Pinwi y
+un único botón Iniciar. La escena se carga previamente; los pedidos, el reloj,
+el movimiento y las interacciones permanecen detenidos hasta pulsar el botón.
+Iniciar entra en la escena existente, en su punto inicial y con el tiempo completo.
+
+Victoria y derrota abren pantallas independientes con el resultado y dos botones
+provisionales funcionales: Reiniciar y Salir. El primero comienza otra partida
+directamente; el segundo cierra el juego por la ruta normal de la ventana.
+El cursor queda libre en los menús y el mouse vuelve a controlar la cámara al
+jugar. Un clic solo se activa si se suelta sobre el mismo botón donde comenzó.
+También se puede navegar con Tab/flechas y activar con Enter/Espacio.
+
+`Gameplay/GameScreens.h` concentra el dibujo provisional, la distribución de los
+botones y su selección. Se puede sustituir su presentación al recibir el diseño
+final conservando las acciones Start/Restart/Exit y el flujo de `DXRender`.
 
 El HUD muestra receta, destino, requisitos, tiempo, transporte, éxitos/fallos,
-acción contextual, estados/progreso de estaciones, avisos y resultado final.
+acción contextual, estados/progreso de estaciones y avisos durante la partida.
 Su diseño utiliza texto monoespaciado pequeño, colores suaves y contorno oscuro,
 sin fondos ni tarjetas. La receta y los avisos aparecen letra por letra; el
 reloj, las acciones y las lecturas de estaciones se muestran inmediatamente.
 La ficha se abre/cierra con R y las estaciones solo muestran texto cuando están
 en uso o son el objetivo cercano. El icono E del mundo mide 42 píxeles.
-Los resultados finales ocultan la información secundaria.
+Las pantallas inicial y de resultado reemplazan completamente el HUD.
 
 ## Archivos y responsabilidades
 
@@ -169,6 +189,7 @@ Creado:
 - `Gameplay/AlchemyScene.h`: reutilización de modelos, primitivas, poses, dibujo
   y sombras del taller, objetos y señales; gestión de sus recursos.
 - `Gameplay/AlchemyHud.h`: presentación provisional mediante texto y barras.
+- `Gameplay/GameScreens.h`: inicio, victoria/derrota y botones provisionales.
 - `Tools/check_alchemy.cpp`: regresiones de lógica sin ventana ni dispositivo GPU.
 - `JUGABILIDAD.md`: esta guía y el diagnóstico de integración.
 
