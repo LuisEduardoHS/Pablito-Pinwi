@@ -100,6 +100,8 @@ private:
 	TerrainSettings terrainSettings;
 	bool terrainLoaded = false;
 	bool modelLoaded = false;
+	bool vertexAnimated = false;
+	std::vector<SimpleVertex> animationRest,animationPose;
 	float modelHeight = 0.0f;
 	D3DXVECTOR3 modelSize = D3DXVECTOR3(0, 0, 0);
 	SceneCollision::MeshCollider collider;
@@ -215,8 +217,9 @@ public:
 
 	// Imported meshes use the converted Vertex Count/Data format of the template.
 	MPrimitives(ID3D11Device* device, ID3D11DeviceContext* context, const char* modelObjectPath,
-		LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType, bool centerBase = false)
+		LPCWSTR texturePath, LPCWSTR textureNormalPath, int ShaderType, bool centerBase = false, bool animate = false)
 	{
+		vertexAnimated=animate;
 		faceToCam = false;
 		VertexBuffer = NULL;
 		IndexBuffer = NULL;
@@ -297,6 +300,7 @@ public:
 		if (TerrainBlendMap) { TerrainBlendMap->Release(); TerrainBlendMap = NULL; }
 		if (TerrainBlendSampler) { TerrainBlendSampler->Release(); TerrainBlendSampler = NULL; }
 		modelLoaded = false;
+		animationRest.clear();animationPose.clear();
 	}
 
 	MPrimitives(ID3D11Device* d3d11Device, ID3D11DeviceContext* d3d11DevCon, float Height, float Width, LPCWSTR texturePath)
@@ -1190,7 +1194,9 @@ public:
 			const D3DXVECTOR3 origin((low.x + high.x) * 0.5f, minY, (low.z + high.z) * 0.5f);
 			for (SimpleVertex& v : vertices) v.pos -= origin;
 		}
-		return createModelObject(vertices.data());
+		const bool loaded=createModelObject(vertices.data());
+		if(loaded && vertexAnimated){animationRest=vertices;animationPose=vertices;}
+		return loaded;
 	}
 
 	bool createModelObject(SimpleVertex* vertices)
@@ -1222,13 +1228,15 @@ public:
 			}
 		}
 		D3D11_BUFFER_DESC desc = {};
-		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.Usage = vertexAnimated?D3D11_USAGE_DYNAMIC:D3D11_USAGE_DEFAULT;
+		desc.CPUAccessFlags = vertexAnimated?D3D11_CPU_ACCESS_WRITE:0;
 		desc.ByteWidth = sizeof(SimpleVertex) * numVertex;
 		desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		D3D11_SUBRESOURCE_DATA data = {};
 		data.pSysMem = vertices;
 		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &VertexBuffer))) return false;
 		desc.ByteWidth = sizeof(DWORD) * numIndex;
+		desc.Usage = D3D11_USAGE_DEFAULT;desc.CPUAccessFlags=0;
 		desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 		data.pSysMem = indices.data();
 		if (FAILED(d3d11Device->CreateBuffer(&desc, &data, &IndexBuffer)))
@@ -1239,6 +1247,27 @@ public:
 		}
 		BuildCollisionGeometry(vertices, indices.data());
 		return true;
+	}
+
+	// Only explicitly animated meshes retain rest vertices and use a dynamic buffer.
+	// The same posed geometry is read by the color and shadow passes.
+	bool ApplyRigidPose(const unsigned char* triangleBones,unsigned vertexCount,const D3DXMATRIX* matrices,unsigned boneCount)
+	{
+		if(!vertexAnimated || !vertexCount || !triangleBones || !matrices || animationRest.size()!=vertexCount || vertexCount%3)return false;
+		for(unsigned i=0;i<vertexCount/3;++i)if(triangleBones[i]>=boneCount)return false;
+		std::vector<D3DXMATRIX> normalMatrices(boneCount);
+		for(unsigned i=0;i<boneCount;++i)
+		{D3DXMATRIX inverse;if(!D3DXMatrixInverse(&inverse,nullptr,&matrices[i]))return false;D3DXMatrixTranspose(&normalMatrices[i],&inverse);}
+		for(unsigned i=0;i<vertexCount;++i)
+		{
+			const SimpleVertex& rest=animationRest[i];SimpleVertex& posed=animationPose[i];const D3DXMATRIX& matrix=matrices[triangleBones[i/3]];
+			D3DXVec3TransformCoord(&posed.pos,&rest.pos,&matrix);
+			D3DXVec3TransformNormal(&posed.normal,&rest.normal,&normalMatrices[triangleBones[i/3]]);D3DXVec3Normalize(&posed.normal,&posed.normal);
+			D3DXVec3TransformNormal(&posed.tangent,&rest.tangent,&matrix);D3DXVec3Normalize(&posed.tangent,&posed.tangent);
+			D3DXVec3Cross(&posed.biTangent,&posed.normal,&posed.tangent);
+		}
+		D3D11_MAPPED_SUBRESOURCE data={};if(FAILED(d3d11DevCon->Map(VertexBuffer,0,D3D11_MAP_WRITE_DISCARD,0,&data)))return false;
+		std::memcpy(data.pData,animationPose.data(),animationPose.size()*sizeof(SimpleVertex));d3d11DevCon->Unmap(VertexBuffer,0);return true;
 	}
 
 	void setTangentBinormal(SimpleVertex *vertex, DWORD *indices, int base) 

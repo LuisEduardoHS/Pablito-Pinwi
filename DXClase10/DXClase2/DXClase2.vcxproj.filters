@@ -50,6 +50,8 @@
     <ClInclude Include="Gameplay\AlchemyScene.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Gameplay\AlchemyHud.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="Gameplay\GameScreens.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Gameplay\PablitoAnimator.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="Gameplay\PablitoRigData.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="MeshPrimitives.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -236,6 +238,9 @@
     </None>
     <None Include="Tools\check_alchemy.cpp"><Filter>Source Files</Filter></None>
     <None Include="JUGABILIDAD.md"><Filter>Resource Files</Filter></None>
+    <None Include="ANIMACIONES.md"><Filter>Resource Files</Filter></None>
+    <None Include="Tools\rig_pablito.py"><Filter>Source Files</Filter></None>
+    <None Include="Tools\check_pablito_animation.cpp"><Filter>Source Files</Filter></None>
     <None Include="vegetation.hlsl"><Filter>Source Files</Filter></None>
     <None Include="Texturas\Vegetacion\pastito-noflores.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Vegetacion\pastito-noflores2.png"><Filter>Resource Files</Filter></None>

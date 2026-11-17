@@ -190,6 +190,7 @@ Creado:
   y sombras del taller, objetos y señales; gestión de sus recursos.
 - `Gameplay/AlchemyHud.h`: presentación provisional mediante texto y barras.
 - `Gameplay/GameScreens.h`: inicio, victoria/derrota y botones provisionales.
+- `Gameplay/PablitoAnimator.h` / `PablitoRigData.h`: poses, transiciones y rig de Pablito; ver `ANIMACIONES.md`.
 - `Tools/check_alchemy.cpp`: regresiones de lógica sin ventana ni dispositivo GPU.
 - `JUGABILIDAD.md`: esta guía y el diagnóstico de integración.
 
