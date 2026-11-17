@@ -26,13 +26,17 @@ int main()
     Check(noon.sunDirection.y > 0.90f && noon.daylight == 1 && noon.starsVisibility == 0,
         "noon must be sunny with no stars");
     Check(noon.sunVisibility == 1 && noon.moonVisibility == 0, "daytime celestial visibility");
+    Check(Distance(noon.ambient, D3DXVECTOR3(0.30f, 0.35f, 0.42f)) < 0.00001f
+        && fabs(noon.lightIntensity - 0.95f) < 0.00001f, "preserve daytime lighting");
     cycle.SetHour(0);
     const DayNightState midnight = cycle.GetState();
     Check(midnight.daylight == 0 && midnight.starsVisibility == 1, "nighttime sky");
     Check(midnight.moonVisibility == 1 && midnight.sunVisibility == 0, "nighttime moon");
     Check(Distance(midnight.lightDirection, midnight.moonDirection) < 0.00001f,
         "moon must drive night lighting and shadows");
-    Check(midnight.ambient.x >= 0.04f && midnight.lightIntensity > 0.15f, "night remains playable");
+    Check(midnight.ambient.x >= 0.30f && midnight.ambient.y >= 0.36f
+        && midnight.ambient.z >= 0.46f && midnight.lightIntensity >= 0.59f,
+        "bright night keeps terrain and shadowed objects visible");
     cycle.SetHour(24);
     Check(Distance(cycle.GetState().sunDirection, midnight.sunDirection) < 0.00001f, "midnight wrap");
     cycle.SetHour(-1);

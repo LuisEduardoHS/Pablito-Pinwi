@@ -13,6 +13,8 @@
 #include "MeshPrimitives.h"
 #include "SunLight.h"
 #include "InteractionPrompt.h"
+#include "Gameplay/AlchemyScene.h"
+#include "Gameplay/AlchemyHud.h"
 
 class DXRender
 {
@@ -45,6 +47,12 @@ private:
 	SunLight sun;
 	DayNightCycle dayNight;
 	InteractionPrompt interactionPrompt;
+	Alchemy::Game alchemy;
+	Alchemy::Scene alchemyScene;
+	Alchemy::Hud alchemyHud;
+	Alchemy::Target interactionTarget;
+	bool hasInteractionTarget=false,dropRequested=false,recipeRequested=false,restartRequested=false;
+	bool windowFocused=false;
 	bool fastForwardTime;
 	int lastClockMinute;
 	MPrimitives *casa;
@@ -267,6 +275,7 @@ public:
 		BoundingSphere2->SetCollisionEnabled(false);
 		if (!sun.Init(d3d11Device)) return false;
 		if (!interactionPrompt.Init(d3d11Device, d3d11DevCon, L"Texturas/Tecla-E.png")) return false;
+		if (!alchemyHud.Init(d3d11Device,Width,Height)) return false;
 		BoundingSphereTranslation = D3DXVECTOR2(0, 0);
 		
 		return true;
@@ -325,9 +334,7 @@ public:
 			ToggleCameraPerspective();
 		cameraPadWasDown = cameraPadDown;
 		// WM_KEYDOWN queues one interaction per E press, without key auto-repeat.
-		if (cloudInteractionRequested && GetForegroundWindow() == gameWindow)
-			ToggleCloudVehicle();
-		cloudInteractionRequested = false;
+		ProcessGameplayActions();
 
 		// Velocidades en unidades por segundo. Correr mientras se sostiene Shift o L3.
 		const bool running = keyboardState[DIK_LSHIFT] || keyboardState[DIK_RSHIFT]
@@ -422,6 +429,7 @@ public:
 		if (distance > speed && distance > 0.0f)
 			movement *= speed / distance;
 		requestedMovement = movement;
+		if(alchemy.state!=Alchemy::MatchState::Playing)requestedMovement=D3DXVECTOR3(0,0,0);
 		if (ridingCloud)
 		{
 			playerYaw = cloudYaw;
@@ -444,6 +452,82 @@ public:
 	void RequestCloudInteraction()
 	{
 		cloudInteractionRequested = true;
+	}
+	void RequestInteraction() {cloudInteractionRequested=true;}
+	void RequestDrop() {dropRequested=true;}
+	void RequestRecipe() {recipeRequested=true;}
+	void RequestRestart() {restartRequested=true;}
+
+	void RefreshInteractionTarget()
+	{
+		std::vector<Alchemy::Target> targets=ridingCloud?std::vector<Alchemy::Target>():alchemy.Candidates();
+		if(alchemy.state==Alchemy::MatchState::Playing && (ridingCloud || CanMountCloudVehicle()))
+			targets.emplace_back(Alchemy::TargetKind::Cloud,0,-10,
+				Alchemy::Position(cloudPosition.x,cloudPosition.y+cloudSize.y*0.5f+1.65f,cloudPosition.z),ridingCloud?L"E - Bajar de la nube":L"E - Subir a la nube",4.5f);
+		for(auto& target:targets)
+		{
+			if(target.kind==Alchemy::TargetKind::Cloud)continue;
+			float fraction;
+			target.visible=!SceneCollision::Raycast(playerPosition+D3DXVECTOR3(0,PlayerHeight()*0.7f,0),
+				D3DXVECTOR3(target.position.x,target.position.y,target.position.z),fraction,alchemyScene.IgnoreFor(target));
+		}
+		const int selected=Alchemy::SelectTarget({playerPosition.x,playerPosition.y,playerPosition.z},
+			{camara->Forward.x,0,camara->Forward.z},targets);
+		hasInteractionTarget=selected>=0;
+		if(hasInteractionTarget)interactionTarget=targets[selected];
+	}
+
+	void DropCarriedObject()
+	{
+		if(!alchemy.Carried())return;
+		const float offset=static_cast<int>(alchemy.Carried()->type)<6?0.45f:0.0f;
+		for(float angle:{0.0f,0.65f,-0.65f,1.4f,-1.4f,3.14f})
+		{
+			const float distance=ridingCloud?4.0f:2.1f;
+			D3DXVECTOR3 point=playerPosition+D3DXVECTOR3(sinf(playerYaw+angle)*distance,0,cosf(playerYaw+angle)*distance);
+			point.y=SupportHeight(point,PlayerHeight(),8.0f)+offset;
+			float hit;
+			if(SceneCollision::Raycast(playerPosition+D3DXVECTOR3(0,PlayerHeight()*0.7f,0),point,hit,ridingCloud?cloudVehicleMesh->GetCollider():NULL))continue;
+			D3DXVECTOR3 bottom=point-D3DXVECTOR3(0,offset,0);
+			if(!SceneCollision::CapsuleFree(bottom,0.6f,0.25f,ridingCloud?cloudVehicleMesh->GetCollider():NULL))continue;
+			alchemy.Drop({point.x,point.y,point.z});return;
+		}
+		alchemy.message=L"No hay espacio libre para soltar aquí. Muévete un poco.";alchemy.messageSeconds=4;
+	}
+
+	void ProcessGameplayActions()
+	{
+		if(GetForegroundWindow()==gameWindow)
+		{
+			if(recipeRequested)alchemy.showRecipe=!alchemy.showRecipe;
+			if(restartRequested && alchemy.state!=Alchemy::MatchState::Playing)
+			{
+				alchemy.Restart();ridingCloud=false;cloudPosition=D3DXVECTOR3(384,0,384);cloudYaw=0;UpdateCloudVehicle();
+				playerPosition=D3DXVECTOR3(384,terreno->getTerrainCollision(D3DXVECTOR2(384,380)),380);
+				playerGrounded=true;isJumping=false;jumpVelocity=jumpOffset=0;playerYaw=0;
+			}
+			RefreshInteractionTarget();
+			if(cloudInteractionRequested && alchemy.state==Alchemy::MatchState::Playing)
+			{
+				if(ridingCloud)ToggleCloudVehicle();
+				else if(hasInteractionTarget)
+				{
+					if(interactionTarget.kind==Alchemy::TargetKind::Cloud)ToggleCloudVehicle();
+					else alchemy.Interact(interactionTarget);
+				}
+			}
+			if(dropRequested)DropCarriedObject();
+			if(cloudInteractionRequested || dropRequested || recipeRequested || restartRequested)alchemyHud.Invalidate();
+		}
+		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
+	}
+
+	void UpdateCarriedObject()
+	{
+		D3DXVECTOR3 point;
+		if(camara->IsThirdPerson()) point=playerPosition+D3DXVECTOR3(sinf(playerYaw)*0.8f+cosf(playerYaw)*1.8f,2.0f,cosf(playerYaw)*0.8f-sinf(playerYaw)*1.8f);
+		else point=camara->Position+camara->Forward*2.5f+camara->Right*0.75f-D3DXVECTOR3(0,0.65f,0);
+		alchemy.UpdateCarry({point.x,point.y,point.z},camara->IsThirdPerson()?playerYaw:camara->Yaw);
 	}
 
 	bool CanMountCloudVehicle() const
@@ -640,6 +724,7 @@ public:
 
 	void ReleaseObjects()
 	{
+		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
 		sun.Release();
 		MPrimitives* models[] = { terreno,casa,mesa,pocion,pablito,cloudVehicleMesh,tree,fence,
@@ -683,6 +768,7 @@ public:
 		playerPosition.y = terreno->getTerrainCollision(D3DXVECTOR2(playerPosition.x, playerPosition.z));
 		UpdateCloudVehicle();
 		UpdateImportedModels(); // Register final object transforms before the first input.
+		if(!alchemyScene.Init(d3d11Device,d3d11DevCon,terreno,pocion,furnace,alchemy))return false;
 		D3DXVECTOR3 Position = playerPosition;
 		D3DXVECTOR3 Target = Position + D3DXVECTOR3(0.0f, 0.0f, 1.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
@@ -692,6 +778,7 @@ public:
 		UpdatePlayerCamera();
 		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
 		UpdateClockTitle();
+		RefreshInteractionTarget();
 
 		return true;
 	}
@@ -722,11 +809,7 @@ public:
 		D3DXMatrixScaling(&scaling, mesaScale, mesaScale, mesaScale);
 		D3DXMatrixTranslation(&translation, tableXZ.x, tableY, tableXZ.y);
 		mesa->UpdateScene(scaling * translation);
-		// Centered on the tabletop, using its measured height instead of a fixed Y.
-		D3DXMatrixScaling(&scaling, pocionScale, pocionScale, pocionScale);
-		D3DXMatrixTranslation(&translation, tableXZ.x,
-			tableY + mesa->GetModelHeight() * mesaScale, tableXZ.y);
-		pocion->UpdateScene(scaling * translation);
+		// The existing potion mesh is now owned visually by the carry/bottling system.
 
 		// The exported mesh faces +X. Rotate it to the player's horizontal heading.
 		D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
@@ -783,6 +866,8 @@ public:
 		if (frameSeconds > 0.05f)
 			frameSeconds = 0.05f;
 		// Input, player physics, model transforms and cameras use this same frame.
+		windowFocused=GetForegroundWindow()==gameWindow;
+		if(windowFocused)alchemy.Tick(static_cast<float>(elapsedSeconds));
 		UpdateImportedModels();
 		DetectInput();
 		// The clock uses elapsed real time even when movement needs a capped step.
@@ -832,6 +917,7 @@ public:
 		UpdateImportedModels();
 		sun.Update(d3d11DevCon, playerPosition, dayNight.GetState());
 		UpdateClockTitle();
+		UpdateCarriedObject();alchemyScene.Sync(alchemy);RefreshInteractionTarget();
 
 		BoundingSphere1->UpdateScene(Bounding1 * MatAcomodo * BoundinMatTranslation);
 		BoundingSphere2->UpdateScene(Bounding2 * MatAcomodo);
@@ -853,12 +939,13 @@ public:
 	void DrawScene()
 	{
 		// Real silhouettes, including Pablito when his mesh is hidden in first person.
-		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pocion, pablito, cloudVehicleMesh, tree,
+		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pablito, cloudVehicleMesh, tree,
 			fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,
 			BoundingSphere1, BoundingSphere2 };
 		sun.BeginShadowPass(d3d11DevCon);
 		for (MPrimitives* model : shadowCasters)
 			model->DrawShadow(sun.GetViewProjection());
+		alchemyScene.DrawShadow(alchemy,sun.GetViewProjection());
 		sun.EndShadowPass(d3d11DevCon);
 		sun.Bind(d3d11DevCon);
 		//Clear our backbuffer to the updated color
@@ -879,7 +966,7 @@ public:
 
 		casa->DrawScene(camara);
 		mesa->DrawScene(camara);
-		pocion->DrawScene(camara);
+		alchemyScene.Draw(alchemy,camara);
 		cloudVehicleMesh->DrawScene(camara);
 		// Keep his world transform and shadow in first person, but hide the mesh.
 		if (camara->IsThirdPerson())
@@ -896,8 +983,10 @@ public:
 		BoundingSphere1->DrawScene(camara);
 		BoundingSphere2->DrawScene(camara);
 		// Future interactables can use this same renderer with their own anchor/range.
-		interactionPrompt.Draw(*camara, cloudPosition + D3DXVECTOR3(0, cloudSize.y*0.5f + 1.65f, 0),
-			CanMountCloudVehicle());
+		if(hasInteractionTarget)
+			interactionPrompt.Draw(*camara,D3DXVECTOR3(interactionTarget.position.x,interactionTarget.position.y+0.5f,interactionTarget.position.z),true,42.0f);
+		alchemyHud.Draw(d3d11Device,d3d11DevCon,interactionPrompt,alchemy,
+			hasInteractionTarget?interactionTarget.label:L"",windowFocused,frameSeconds,hasInteractionTarget?&interactionTarget:nullptr);
 		//Present the backbuffer to the screen
 		SwapChain->Present(0, 0);
 	}
