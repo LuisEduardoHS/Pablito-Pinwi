@@ -12,6 +12,7 @@ class Scene
     int propTarget=-1;
     std::vector<Prop> props;
     std::array<MPrimitives*,6> ingredients{{nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}};
+    std::array<float,6> ingredientScales{{1,1,1,1,1,1}},ingredientHeights{{0,0,0,0,0,0}};
     std::array<const SceneCollision::MeshCollider*,4> stationColliders{{nullptr,nullptr,nullptr,nullptr}};
     std::vector<const SceneCollision::MeshCollider*> deliveryColliders;
     std::vector<MPrimitives*> deliveryBillboards;
@@ -42,8 +43,14 @@ class Scene
     {return static_cast<int>(item.type)<6?ingredients[static_cast<int>(item.type)]:bottle;}
     void PoseItem(const Item& item) const
     {
-        const float size=static_cast<int>(item.type)<6?1.0f:4.0f;
-        ItemMesh(item)->UpdateScene(Matrix(item.position,{size,size,size},item.yaw));
+        const unsigned type=static_cast<unsigned>(item.type);const bool ingredient=type<ingredients.size();
+        const float size=ingredient?ingredientScales[type]:4.0f;Position position=item.position;
+        // Available/dropped/placed meshes rest on their base. While carried,
+        // center their body at the existing grip without moving logical targets.
+        if(ingredient && item.state==ItemState::Carried)position.y-=ingredientHeights[type]*.45f;
+        // Show the root's length across the table/hands, rather than end-on.
+        const float yaw=item.yaw+(item.type==Ingredient::Root?D3DX_PI*.5f:0);
+        ItemMesh(item)->UpdateScene(Matrix(position,{size,size,size},yaw));
     }
 public:
     bool valid=true;
@@ -77,17 +84,23 @@ public:
         Place(Cube(162,159,177),{390.3f,top+1.25f,407},{1.3f,0.18f,0.25f});
         game.layout.stations[3]=Position(390,top,407);
         const char* ingredientModelPaths[6] = {
-            "Models/ingredientes/hongorojo.obj",
-            "Models/ingredientes/florazul.obj",
-            "Models/ingredientes/cristal.obj",
-            "Models/ingredientes/agua.obj",
-            "Models/ingredientes/hierba.obj",
-            "Models/ingredientes/raiz.obj"
+            "Models/ingredientes/hongorojo.txt",
+            "Models/ingredientes/florazul.txt",
+            "Models/ingredientes/cristal.txt",
+            "Models/ingredientes/agua.txt",
+            "Models/ingredientes/hierba.txt",
+            "Models/ingredientes/raiz.txt"
         };
+        // Longest dimension in world units; uniform scaling retains the art's
+        // proportions and leaves a gap between the one-unit supply positions.
+        const float extents[6]={.82f,.80f,.86f,.78f,.76f,.84f};
         for(int i=0;i<6;++i)
         {
             auto* mesh=Own(new MPrimitives(d,c,ingredientModelPaths[i],L"Texturas/paleta.png",L"",ShaderDiffuse,true));
             if(!mesh->IsModelLoaded()) valid=false;
+            const auto size=mesh->GetModelSize();const float longest=(std::max)(size.x,(std::max)(size.y,size.z));
+            if(!std::isfinite(longest) || longest<=0){valid=false;continue;}
+            ingredientScales[i]=extents[i]/longest;ingredientHeights[i]=size.y*ingredientScales[i];
             mesh->SetCollisionEnabled(false);
             ingredients[i]=mesh;
         }
@@ -169,7 +182,7 @@ public:
     void Release()
     {
         for(auto* mesh:owned) {mesh->ReleaseModelResources();delete mesh;}
-        owned.clear();props.clear();propTarget=-1;ingredients.fill(nullptr);stationColliders.fill(nullptr);deliveryColliders.clear();
+        owned.clear();props.clear();propTarget=-1;ingredients.fill(nullptr);ingredientScales.fill(1);ingredientHeights.fill(0);stationColliders.fill(nullptr);deliveryColliders.clear();
         deliveryBillboards.clear();deliverySignPositions.clear();billboardAge=0.0f;bottle=liquid=fire=nullptr;
     }
 };

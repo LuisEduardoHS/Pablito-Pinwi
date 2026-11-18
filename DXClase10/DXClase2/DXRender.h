@@ -908,7 +908,7 @@ public:
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
 		sun.Release();
-		MPrimitives* models[] = { terreno,choza,mesa,pocion,pablito,cloudVehicleMesh,tree,fence,
+		MPrimitives* models[] = { terreno,choza,mesa,pocion,pablito,animationTool,cloudVehicleMesh,tree,fence,
 			furnace,pipe,corner_pipe,cubo,esfera,toroide,cono,cilindro,billboard,skydomo,BoundingSphere1,BoundingSphere2 };
 		for (MPrimitives* model : models)
 		{
