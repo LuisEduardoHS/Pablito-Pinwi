@@ -153,10 +153,10 @@ configurables en `Recipe` y `Rules`.
 
 ## Inicio y pantallas de resultado
 
-Cada ejecución abre una pantalla provisional con el título Pablito Pinwi y
-un único botón Iniciar. La escena se carga previamente; los pedidos, el reloj,
+Cada ejecución abre una pantalla con el letrero ilustrado Pablito Pinwi y
+un único botón Jugar. La escena se carga previamente; los pedidos, el reloj,
 el movimiento y las interacciones permanecen detenidos hasta pulsar el botón.
-Iniciar entra en la escena existente, en su punto inicial y con el tiempo completo.
+Jugar entra en la escena existente, en su punto inicial y con el tiempo completo.
 
 Victoria y derrota abren pantallas independientes con los letreros originales
 `Texturas/Pantallas/ganaste.png` y `has-perdido.png` y dos botones funcionales:
@@ -167,9 +167,11 @@ El cursor queda libre en los menús y el mouse vuelve a controlar la cámara al
 jugar. Un clic solo se activa si se suelta sobre el mismo botón donde comenzó.
 También se puede navegar con Tab/flechas y activar con Enter/Espacio.
 
-`Gameplay/GameScreens.h` concentra el dibujo provisional, la distribución de los
-botones y su selección. Se puede sustituir su presentación al recibir el diseño
-final conservando las acciones Start/Restart/Exit y el flujo de `DXRender`.
+`Gameplay/GameScreens.h` concentra las imágenes, la distribución de los botones
+y su selección. Las imágenes originales de inicio se conservan en
+`Texturas/Pantallas`; Reiniciar y Salir son variantes del botón Jugar. El fondo
+azul, las proporciones y la indicación de selección se describen en `PANTALLAS.md`.
+Se conservan las acciones Start/Restart/Exit y el flujo de `DXRender`.
 
 El HUD muestra receta, destino, requisitos, tiempo, transporte, éxitos/fallos,
 acción contextual, estados/progreso de estaciones y avisos durante la partida.

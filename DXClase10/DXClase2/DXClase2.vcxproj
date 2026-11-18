@@ -145,6 +145,11 @@
     <None Include="Texturas\Ingredientes\hierba-verde.png" />
     <None Include="Texturas\Ingredientes\raiz-luminosa.png" />
     <None Include="Texturas\Pantallas\ganaste.png" />
+    <None Include="Texturas\Pantallas\letrero-pablitopinwi.png" />
+    <None Include="Texturas\Pantallas\boton-jugar.png" />
+    <None Include="Texturas\Pantallas\boton-reiniciar.png" />
+    <None Include="Texturas\Pantallas\boton-salir.png" />
+    <None Include="PANTALLAS.md" />
     <None Include="Texturas\Pantallas\has-perdido.png" />
     <None Include="INTERACCIONES.md" />
     <None Include="COLISIONES.md" />

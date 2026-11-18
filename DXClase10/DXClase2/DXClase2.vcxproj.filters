@@ -255,6 +255,11 @@
     <None Include="Texturas\Ingredientes\hierba-verde.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Ingredientes\raiz-luminosa.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Pantallas\ganaste.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Pantallas\letrero-pablitopinwi.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Pantallas\boton-jugar.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Pantallas\boton-reiniciar.png"><Filter>Resource Files</Filter></None>
+    <None Include="Texturas\Pantallas\boton-salir.png"><Filter>Resource Files</Filter></None>
+    <None Include="PANTALLAS.md"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Pantallas\has-perdido.png"><Filter>Resource Files</Filter></None>
     <None Include="ANIMACIONES.md"><Filter>Resource Files</Filter></None>
     <None Include="Tools\rig_pablito.py"><Filter>Source Files</Filter></None>
