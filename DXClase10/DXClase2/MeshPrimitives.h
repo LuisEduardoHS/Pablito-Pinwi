@@ -557,8 +557,11 @@ public:
 		};
 		numVertex = ARRAYSIZE(vertex);
 
-		for (int i = 0; i < numVertex; i++)
-			vertex[i].normal = vertex[i].pos;
+		// Each duplicated group belongs to one flat face. Radial corner normals
+		// become almost horizontal on wide, thin bridge planks and shade triangles
+		// as dark wedges after non-uniform scaling.
+		const D3DXVECTOR3 faceNormals[]={{0,0,-1},{0,0,1},{0,1,0},{0,-1,0},{-1,0,0},{1,0,0}};
+		for(int i=0;i<numVertex;++i)vertex[i].normal=faceNormals[i/4];
 
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));

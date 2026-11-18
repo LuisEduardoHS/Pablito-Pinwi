@@ -1,0 +1,127 @@
+{
+  "extent": 1152,
+  "main_house": {
+    "origin": [
+      384,
+      30.08,
+      435
+    ],
+    "yaw_degrees": 65
+  },
+  "secondary_houses": [
+    {
+      "name": "Vecina",
+      "center": [
+        940,
+        125.08,
+        1063
+      ],
+      "yaw_degrees": 128.66,
+      "delivery": [
+        935.1223,
+        125,
+        1056.659
+      ],
+      "road_end": [
+        930,
+        125,
+        1050
+      ]
+    },
+    {
+      "name": "Mensajero",
+      "center": [
+        1039.5,
+        110.08,
+        760.3
+      ],
+      "yaw_degrees": 121.83,
+      "delivery": [
+        1035.28,
+        110,
+        753.5036
+      ],
+      "road_end": [
+        1030,
+        110,
+        745
+      ]
+    },
+    {
+      "name": "Guardabosques",
+      "center": [
+        166.8,
+        110.08,
+        987.7
+      ],
+      "yaw_degrees": 79.7,
+      "delivery": [
+        168.2233,
+        110,
+        979.8276
+      ],
+      "road_end": [
+        170,
+        110,
+        970
+      ]
+    }
+  ],
+  "river": {
+    "x_base": 250,
+    "sine_amplitude": 55,
+    "sine_phase": 0.4,
+    "x_drift_per_z": 0.07,
+    "half_width": 12,
+    "width_variation": 5,
+    "levels": [
+      [
+        0,
+        18
+      ],
+      [
+        200,
+        25
+      ],
+      [
+        400,
+        29
+      ],
+      [
+        500,
+        34
+      ],
+      [
+        600,
+        46
+      ],
+      [
+        690,
+        66
+      ],
+      [
+        800,
+        78
+      ],
+      [
+        970,
+        108
+      ],
+      [
+        1152,
+        145
+      ]
+    ]
+  },
+  "bridge": {
+    "center": [
+      251.6517,
+      66.0795,
+      686.9809
+    ],
+    "yaw_degrees": -64.5024,
+    "slope": 0.0898,
+    "length": 86,
+    "width": 16
+  }
+}

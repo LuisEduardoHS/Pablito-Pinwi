@@ -22,6 +22,9 @@ cbuffer SunBuffer : register(b2)
     float4 MoonRight;     // billboard right, tangent of angular radius
     float4 MoonUp;        // billboard up, night painting exposure
     float4 NightSky;      // daylight, stars, twilight, star rotation
+    float4 RoomOrigin;
+    float4 RoomAxes;      // inverse horizontal basis of the main house
+    float4 RoomLight;     // soft, fixed interior ambient contribution
 };
 Texture2D<float> SunShadowMap : register(t3);
 SamplerComparisonState SunShadowSampler : register(s1);
@@ -50,7 +53,12 @@ float3 SunLitColor(float3 albedo, float3 normal, float3 worldPosition)
 {
     normal = normalize(normal);
     float diffuse = saturate(dot(normal, light.direction));
-    return albedo * (light.ambient.rgb + light.diffuse.rgb * diffuse * SunVisibility(worldPosition, normal));
+    float3 relative=worldPosition-RoomOrigin.xyz;
+    float x=dot(relative.xz,RoomAxes.xy),z=dot(relative.xz,RoomAxes.zw);
+    float room=smoothstep(-11,-9,x)*(1-smoothstep(22,24,x));
+    room*=smoothstep(-10,-8,z)*(1-smoothstep(9,11,z));
+    room*=smoothstep(-.25f,.2f,relative.y)*(1-smoothstep(7,8,relative.y));
+    return albedo * (light.ambient.rgb + room*RoomLight.rgb + light.diffuse.rgb * diffuse * SunVisibility(worldPosition, normal));
 }
 
 #endif

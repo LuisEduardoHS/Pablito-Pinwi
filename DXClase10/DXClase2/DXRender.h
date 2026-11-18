@@ -100,6 +100,7 @@ private:
 	bool cameraPadWasDown;
 	D3DXVECTOR3 cloudPosition; // Center of the vehicle; the rider stands on its top.
 	D3DXVECTOR3 cloudSize;
+	float cloudSeatHeight=0;
 	float cloudYaw;
 	float cloudHoverHeight;
 	float cloudSpeed;
@@ -137,7 +138,7 @@ public:
 		mesaScale = pocionScale = 4.0f;
 		chozaScale = 1.0f;
 		pablitoScale = treeScale = fenceScale = furnaceScale = 1.0f;
-		pipeScale = cornerPipeScale = 1.0f;
+		pipeScale = cornerPipeScale = 0.5f;
 		rotPerFrame = 0.0f;
 		isJumping = false;
 		jumpVelocity = 0.0f;
@@ -150,7 +151,7 @@ public:
 		cloudPosition = D3DXVECTOR3(384.0f, 0.0f, 384.0f);
 		cloudSize = D3DXVECTOR3(1.0f, 1.0f, 1.0f);
 		cloudYaw = 0.0f;
-		cloudHoverHeight = 0.8f; // Clearance below the provisional gray platform.
+		cloudHoverHeight = 0.25f; // Clearance below the actual cloud mesh.
 		cloudSpeed = 28.0f; // Walking: 8; running: 16 world units per second.
 		ridingCloud = cloudInteractionRequested = false;
 		perspectiveBeforeCloud = true;
@@ -263,6 +264,14 @@ public:
 			"Models/pinwinube.txt", L"Texturas/pinwinube.png", L"", ShaderDiffuse);
 		if (!cloudVehicleMesh->IsModelLoaded()) return false;
 		cloudSize = cloudVehicleMesh->GetModelSize();
+		// The highest vertex is a side puff, not the seat under Pablito.
+		cloudSeatHeight=cloudSize.y*.5f;
+		const D3DXVECTOR3 seatRay(0,cloudSize.y*.5f+.1f,0),seatEnd(0,-cloudSize.y*.5f-.1f,0);
+		float seatHit=1;
+		cloudVehicleMesh->GetCollider()->Query(cloudVehicleMesh->GetCollider()->GetWorldBounds(),[&](const SceneCollision::Triangle& tri){
+			float hit;if(SceneCollision::RayTriangle(seatRay,seatEnd-seatRay,tri,hit) && hit<seatHit)seatHit=hit;
+		});
+		if(seatHit<1)cloudSeatHeight=seatRay.y+(seatEnd.y-seatRay.y)*seatHit+.025f;
 
 		// Three imported OBJ meshes, converted to the template's text format.
 		choza = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pinwichoza.txt",
@@ -629,7 +638,7 @@ public:
 		std::vector<Alchemy::Target> targets=ridingCloud?std::vector<Alchemy::Target>():alchemy.Candidates();
 		if(alchemy.state==Alchemy::MatchState::Playing && (ridingCloud || CanMountCloudVehicle()))
 			targets.emplace_back(Alchemy::TargetKind::Cloud,0,-10,
-				Alchemy::Position(cloudPosition.x,cloudPosition.y+cloudSize.y*0.5f+1.65f,cloudPosition.z),ridingCloud?L"E - Bajar de la nube":L"E - Subir a la nube",4.5f);
+				Alchemy::Position(cloudPosition.x,cloudPosition.y+cloudSeatHeight,cloudPosition.z),ridingCloud?L"E - Bajar de la nube":L"E - Subir a la nube",CloudInteractionRange());
 		for(auto& target:targets)
 		{
 			if(target.kind==Alchemy::TargetKind::Cloud)continue;
@@ -698,17 +707,18 @@ public:
 		alchemy.UpdateCarry({point.x,point.y,point.z},camara->IsThirdPerson()?playerYaw:camara->Yaw);
 	}
 
+	float CloudInteractionRange() const{return fmaxf(cloudSize.x,cloudSize.z)*.5f+2.5f;}
 	bool CanMountCloudVehicle() const
 	{
 		const float dx = playerPosition.x - cloudPosition.x;
 		const float dz = playerPosition.z - cloudPosition.z;
-		const float top = cloudPosition.y + cloudSize.y * 0.5f;
-		const float maxDist = fmaxf(cloudSize.x, cloudSize.z) * 0.5f + 2.5f;
+		const float top = cloudPosition.y + cloudSeatHeight;
+		const float maxDist = CloudInteractionRange();
 		if (ridingCloud || dx * dx + dz * dz > maxDist * maxDist
 			|| fabsf(playerPosition.y - top) > 4.0f) return false;
 		float hit;
 		return !SceneCollision::Raycast(playerPosition + D3DXVECTOR3(0,PlayerHeight()*0.7f,0),
-			cloudPosition + D3DXVECTOR3(0,cloudSize.y*0.5f,0),hit,cloudVehicleMesh->GetCollider());
+			cloudPosition + D3DXVECTOR3(0,cloudSeatHeight,0),hit,cloudVehicleMesh->GetCollider());
 	}
 
 	void ToggleCloudVehicle()
@@ -732,7 +742,7 @@ public:
 			ridingCloud = true;
 			if (!camara->IsThirdPerson()) camara->TogglePerspective();
 			playerYaw = cloudYaw;
-			playerPosition = cloudPosition + D3DXVECTOR3(0, cloudSize.y * 0.5f, 0);
+			playerPosition = cloudPosition + D3DXVECTOR3(0,cloudSeatHeight,0);
 		}
 		isJumping = false;
 		jumpVelocity = jumpOffset = 0.0f;
@@ -753,7 +763,12 @@ public:
 				const float localZ = z * cloudSize.z * 0.5f;
 				const D3DXVECTOR2 sample(cloudPosition.x + localX * cosine + localZ * sine,
 					cloudPosition.z - localX * sine + localZ * cosine);
-				floor = fmaxf(floor, terreno->getTerrainCollision(sample));
+				const float ground=terreno->getTerrainCollision(sample);
+				const float previousBase=cloudPosition.y-cloudSize.y*.5f-cloudHoverHeight;
+				const float support=SupportHeight({sample.x,fmaxf(ground,previousBase),sample.y},.8f,10,cloudVehicleMesh->GetCollider());
+				floor=fmaxf(floor,support);
+				if(sample.y>=0 && sample.y<=WorldLayout::Extent && fabsf(sample.x-WorldLayout::RiverX(sample.y))<WorldLayout::RiverHalfWidth(sample.y))
+					floor=fmaxf(floor,WorldLayout::RiverHeight(sample.y)+.08f);
 			}
 		cloudPosition.y = floor + cloudHoverHeight + cloudSize.y * 0.5f;
 		D3DXMATRIX scaling, rotation, translation;
@@ -762,7 +777,7 @@ public:
 		D3DXMatrixTranslation(&translation, cloudPosition.x, cloudPosition.y, cloudPosition.z);
 		cloudVehicleMesh->UpdateScene(scaling * rotation * translation);
 		if (ridingCloud)
-			playerPosition = cloudPosition + D3DXVECTOR3(0, cloudSize.y * 0.5f, 0);
+			playerPosition = cloudPosition + D3DXVECTOR3(0,cloudSeatHeight,0);
 	}
 
 	float PlayerHeight() const { return pablito->GetModelHeight()*pablitoScale; }
@@ -790,7 +805,7 @@ public:
 			const float distance=fabsf(direction.x)*cloudSize.x*0.5f+fabsf(direction.z)*cloudSize.z*0.5f+PlayerRadius()+0.5f;
 			D3DXVECTOR3 candidate=playerPosition+SceneCollision::RotateY(direction,cloudYaw)*distance;
 			candidate.y=SupportHeight(candidate,0.3f,10.0f,cloudVehicleMesh->GetCollider());
-			if(playerPosition.y-candidate.y>3.0f || candidate.y-playerPosition.y>0.35f) continue;
+			if(playerPosition.y-candidate.y>4.0f || candidate.y-playerPosition.y>0.35f) continue;
 			if(!SceneCollision::CapsuleFree(candidate,PlayerHeight(),PlayerRadius(),cloudVehicleMesh->GetCollider())) continue;
 			SceneCollision::Contacts contacts;
 			D3DXVECTOR3 arrived=SceneCollision::MoveCapsule(playerPosition,candidate-playerPosition,PlayerHeight(),
@@ -846,7 +861,9 @@ public:
 		const int steps=(std::max)(1,static_cast<int>(ceilf(fmaxf(length/0.18f,fabsf(turn)/0.12f))));
 		const D3DXVECTOR3 delta=movement/static_cast<float>(steps);
 		const float margin=SceneCollision::Length(cloudSize)*0.5f+0.5f;
-		const D3DXVECTOR3 half(cloudSize.x*0.5f,(cloudSize.y+PlayerHeight())*0.5f,cloudSize.z*0.5f);
+		const float upper=fmaxf(cloudSize.y*.5f,cloudSeatHeight+PlayerHeight());
+		const float collisionOffset=(upper-cloudSize.y*.5f)*.5f;
+		const D3DXVECTOR3 half(cloudSize.x*.5f,(upper+cloudSize.y*.5f)*.5f,cloudSize.z*.5f);
 		for(int i=0;i<steps;++i)
 		{
 			const D3DXVECTOR3 previous=cloudPosition;
@@ -860,10 +877,10 @@ public:
 			for(int pass=0;pass<4;++pass)
 			{
 				UpdateCloudVehicle();
-				D3DXVECTOR3 center=cloudPosition+D3DXVECTOR3(0,PlayerHeight()*0.5f,0);
+				D3DXVECTOR3 center=cloudPosition+D3DXVECTOR3(0,collisionOffset,0);
 				const D3DXVECTOR3 desired=center;
 				SceneCollision::Contacts hit=SceneCollision::ResolveBox(center,half,cloudYaw,
-					previous+D3DXVECTOR3(0,PlayerHeight()*0.5f,0),cloudVehicleMesh->GetCollider());
+					previous+D3DXVECTOR3(0,collisionOffset,0),cloudVehicleMesh->GetCollider());
 				if(!hit.blocked) {accepted=true;break;}
 				if(fabsf(center.y-desired.y)>0.05f) break;
 				cloudPosition.x+=center.x-desired.x;cloudPosition.z+=center.z-desired.z;
@@ -950,7 +967,7 @@ public:
 		UpdateCloudVehicle();
 		UpdateImportedModels(); // Register final object transforms before the first input.
 		if(!alchemyScene.Init(d3d11Device,d3d11DevCon,terreno,pocion,furnace,alchemy))return false;
-		if(!waterStream.Init(d3d11Device,d3d11DevCon,*terreno))return false;
+		if(!waterStream.Init(d3d11Device,d3d11DevCon))return false;
 		if(!vegetation.Init(d3d11Device,d3d11DevCon,*terreno,terrainSettings,
 			[this](float x,float z,float radius){return waterStream.Contains(x,z,radius);} ))return false;
 		D3DXVECTOR3 Position = playerPosition;
@@ -981,38 +998,34 @@ public:
 	// Edit X/Z, scale and yaw here to arrange the imported models.
 	void UpdateImportedModels()
 	{
-		const D3DXVECTOR2 houseXZ(384.0f, 435.0f);
-		const D3DXVECTOR2 tableXZ(384.0f, 403.0f);
-		const float houseYaw = 65.0f; // Degrees.
-		const float houseY = terreno->getTerrainCollision(houseXZ) - 0.15f;
-		const float tableY = terreno->getTerrainCollision(tableXZ);
+		const auto house=WorldLayout::HouseOrigin(),table=WorldLayout::HousePoint(9,.03f,-5);
 		D3DXMATRIX scaling, rotation, translation;
 		D3DXMatrixScaling(&scaling, chozaScale, chozaScale, chozaScale);
-		D3DXMatrixRotationY(&rotation, D3DXToRadian(houseYaw));
-		D3DXMatrixTranslation(&translation, houseXZ.x, houseY, houseXZ.y);
+		D3DXMatrixRotationY(&rotation,WorldLayout::HouseYaw());
+		D3DXMatrixTranslation(&translation,house.x,house.y,house.z);
 		choza->UpdateScene(scaling * rotation * translation);
 		D3DXMatrixScaling(&scaling, mesaScale, mesaScale, mesaScale);
-		D3DXMatrixTranslation(&translation, tableXZ.x, tableY, tableXZ.y);
-		mesa->UpdateScene(scaling * translation);
+		D3DXMatrixTranslation(&translation,table.x,table.y,table.z);
+		mesa->UpdateScene(scaling * rotation * translation);
 		// The existing potion mesh is now owned visually by the carry/bottling system.
 
 		// The exported mesh faces +X. Rotate it to the player's horizontal heading.
 		D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
-		D3DXMatrixRotationY(&rotation, playerYaw - D3DX_PI * 0.5f);
-		D3DXMatrixTranslation(&translation, playerPosition.x, playerPosition.y, playerPosition.z);
+		D3DXMatrixRotationY(&rotation,visualPlayerYaw-D3DX_PI*.5f);
+		const auto visualFeet=playerPosition+pablitoAnimator.TransitionOffset();
+		D3DXMatrixTranslation(&translation,visualFeet.x,visualFeet.y,visualFeet.z);
 		pablito->UpdateScene(scaling * rotation * translation);
 		PlaceModel(tree, 360.0f, 438.0f, treeScale);
 		PlaceModel(fence, 403.0f, 427.0f, fenceScale);
-		PlaceModel(furnace, 394.0f, 412.0f, furnaceScale);
-		PlaceModel(pipe, 399.0f, 407.0f, pipeScale);
-		PlaceModel(corner_pipe, 402.0f, 415.0f, cornerPipeScale);
+		const struct {MPrimitives* mesh;float x,z,scale;} tools[]={{furnace,7,6,furnaceScale},{pipe,9,7,pipeScale},{corner_pipe,11,7,cornerPipeScale}};
+		for(const auto& tool:tools){auto p=WorldLayout::HousePoint(tool.x,.03f,tool.z);D3DXMatrixScaling(&scaling,tool.scale,tool.scale,tool.scale);D3DXMatrixRotationY(&rotation,WorldLayout::HouseYaw());D3DXMatrixTranslation(&translation,p.x,p.y,p.z);tool.mesh->UpdateScene(scaling*rotation*translation);}
 	}
 
 	void UpdatePlayerCamera()
 	{
 		if (ridingCloud && !camara->IsThirdPerson()) camara->TogglePerspective();
 		const float playerHeight = pablito->GetModelHeight() * pablitoScale;
-		const D3DXVECTOR3 eyes = playerPosition + D3DXVECTOR3(0, playerHeight * 0.86f, 0);
+		const D3DXVECTOR3 eyes=playerPosition+pablitoAnimator.TransitionOffset()+D3DXVECTOR3(0,playerHeight*.86f,0);
 		const float followDistance = ridingCloud ? fmaxf(playerHeight * 2.5f, cloudSize.z * 2.0f) : playerHeight * 2.5f;
 		camara->FollowPlayer(eyes, followDistance);
 		if (camara->IsThirdPerson())

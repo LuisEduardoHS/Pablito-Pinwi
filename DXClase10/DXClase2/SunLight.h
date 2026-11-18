@@ -3,6 +3,7 @@
 
 #include "ShaderCompiler.h"
 #include "DayNightCycle.h"
+#include "WorldLayout.h"
 
 // Celestial lighting: the existing sun/shadow map, with a moon and night sky.
 class SunLight
@@ -107,6 +108,10 @@ public:
         data.moonUp = D3DXVECTOR4(moonUp.x, moonUp.y, moonUp.z, nightSkyExposure);
         data.night = dynamicSky ? D3DXVECTOR4(skyState.daylight, skyState.starsVisibility,
             skyState.twilight, skyState.starRotation) : D3DXVECTOR4(1, 0, 0, 0);
+        const auto room=WorldLayout::HouseOrigin();const float a=WorldLayout::HouseYaw();
+        data.roomOrigin=D3DXVECTOR4(room.x,room.y,room.z,1);
+        data.roomAxes=D3DXVECTOR4(cosf(a),-sinf(a),sinf(a),cosf(a));
+        data.roomLight=D3DXVECTOR4(.26f,.23f,.19f,0);
         context->UpdateSubresource(sunBuffer, 0, NULL, &data, 0, 0);
     }
 
@@ -169,6 +174,7 @@ private:
         D3DXMATRIX viewProjection;
         D3DXVECTOR4 direction, color, shadow, sky;
         D3DXVECTOR4 moonDirection, moonRight, moonUp, night;
+        D3DXVECTOR4 roomOrigin,roomAxes,roomLight;
     } data;
     bool dynamicSky;
     DayNightState skyState;

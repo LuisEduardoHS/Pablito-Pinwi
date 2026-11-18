@@ -4,11 +4,12 @@ La solución activa es `../DXClase2.sln`; `../Objetos/plantilla` es otra plantil
 
 ## Valle y montañas actuales
 
-El mundo ocupa **1,152 × 1,152 unidades**, con alturas de **28.00 a 312.75**.
+El mundo ocupa **1,152 × 1,152 unidades**, con alturas de **16.75 a 312.75**.
 Combina una terraza de pueblo a Y=30, praderas onduladas, estribaciones,
 cumbres de distintas alturas y pasos entre montañas. Las montañas se elevan
-sobre los bordes y al fondo del valle. El comienzo, la casa y los objetos
-conservan sus coordenadas X/Z y descansan sobre la nueva terraza.
+sobre los bordes y al fondo del valle. El taller se encuentra dentro de la casa
+principal; tres parcelas niveladas reciben casas secundarias al final de los
+ramales. El comienzo y la casa principal permanecen en la terraza del pueblo.
 
 Las montañas forman macizos alargados y asimétricos: cumbres anchas, mesetas
 verdes, crestas conectadas y contrafuertes de roca. Se combinan volúmenes
@@ -24,6 +25,12 @@ Los caminos tienen alturas propias y transiciones amplias hacia las laderas:
 no se limitan a pintar una carretera encima de una pendiente impracticable.
 Las pendientes longitudinales del trazado están por debajo del 18 %.
 
+Un río de 24–34 unidades de ancho atraviesa el mapa de norte a sur. El cauce,
+sus orillas, el nivel del agua y las rampas del puente comparten las coordenadas
+de `WorldLayout.json`. El ramal occidental se desvía ligeramente para cruzar el
+puente. `Tools/check_valley.py` incluye el tablero como conexión sobre el río y
+verifica el lecho y las parcelas de las casas. Ver `PUEBLO.md` para los ajustes.
+
 ## Vegetación de las praderas
 
 `Vegetation.h` distribuye las tres imágenes originales de `Texturas/Vegetacion/`
@@ -35,8 +42,8 @@ Las posiciones usan una semilla fija: parecen aleatorias y se mantienen entre
 partidas. Hay claros y grupos de distinta densidad, con tamaños, tonos y reflejos
 horizontales variados. Las probabilidades iniciales son 50 % para el pastito
 pequeño, 40 % para el segundo y 10 % para las flores; los arbustos se reducen
-adicionalmente al exigir 10.5 unidades entre ellos. La distribución tiene unas
-20,400 plantas; el filtro del arroyo deja libre el agua y su margen. La cifra
+adicionalmente al exigir 10.5 unidades entre ellos. La distribución conserva
+numerosas plantas por las praderas; el filtro del río deja libre el agua y su margen. La cifra
 varía con las exclusiones del escenario. Se prueban posiciones cada 3.5 unidades con una
 probabilidad variable del 80 al 100 %, conservando variación y agrupaciones.
 

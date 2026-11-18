@@ -2,14 +2,13 @@
 #define GC_WATER_STREAM_H
 #include "MeshPrimitives.h"
 #include "Camara.h"
+#include "WorldLayout.h"
 #include <vector>
 
-// A shallow visual ribbon beside the village. It follows the existing terrain;
-// it does not register a collider, excavate the map or change movement rules.
+// Full-valley river. WorldLayout is also used to excavate its terrain channel.
 class WaterStream
 {
     struct Vertex {D3DXVECTOR3 position;D3DXVECTOR2 uv;D3DXVECTOR3 normal;};
-    struct Point {D3DXVECTOR3 position;float halfWidth;};std::vector<Point> path;
     struct ViewData {D3DXMATRIX viewProjection;D3DXVECTOR4 camera,time;};
     ID3D11Buffer *vertices=nullptr,*indices=nullptr,*constants=nullptr,*lighting=nullptr;
     ID3D11VertexShader* vs=nullptr;ID3D11PixelShader* ps=nullptr;ID3D11InputLayout* layout=nullptr;
@@ -34,34 +33,27 @@ class WaterStream
         if(FAILED(hr))return false;context->GenerateMips(noise);return true;
     }
 public:
-    float waveAmplitude=.035f;
+    float waveAmplitude=.07f;
     WaterStream()=default;WaterStream(const WaterStream&)=delete;WaterStream& operator=(const WaterStream&)=delete;
     ~WaterStream(){Release();}
     bool Contains(float x,float z,float margin=0) const
     {
-        if(x<328-margin || x>347+margin || z<346-margin || z>449+margin)return false;
-        for(size_t i=1;i<path.size();++i)
-        {
-            const auto& a=path[i-1];const auto& b=path[i];const float dx=b.position.x-a.position.x,dz=b.position.z-a.position.z;
-            const float t=(std::max)(0.0f,(std::min)(1.0f,((x-a.position.x)*dx+(z-a.position.z)*dz)/(dx*dx+dz*dz)));
-            const float px=x-a.position.x-t*dx,pz=z-a.position.z-t*dz,width=a.halfWidth+(b.halfWidth-a.halfWidth)*t+margin+.35f;
-            if(px*px+pz*pz<width*width)return true;
-        }
-        return false;
+        if(z< -margin || z>WorldLayout::Extent+margin)return false;
+        z=(std::max)(0.0f,(std::min)(WorldLayout::Extent,z));
+        return fabsf(x-WorldLayout::RiverX(z))<WorldLayout::RiverHalfWidth(z)+margin+2;
     }
-    bool Init(ID3D11Device* device,ID3D11DeviceContext* context,MPrimitives& terrain)
+    bool Init(ID3D11Device* device,ID3D11DeviceContext* context)
     {
-        Release();const unsigned rows=128,columns=10;std::vector<Vertex> mesh;std::vector<unsigned> triangles;
+        Release();const unsigned rows=512,columns=16;std::vector<Vertex> mesh;std::vector<unsigned> triangles;
         for(unsigned row=0;row<=rows;++row)
         {
-            const float t=static_cast<float>(row)/rows,x=337+4*sinf(t*D3DX_PI*2)-t,z=350+95*t,half=2.3f+.4f*sinf(t*D3DX_PI);
-            const float dx=8*D3DX_PI*cosf(t*D3DX_PI*2)-1,dz=95;D3DXVECTOR2 across(dz,-dx);D3DXVec2Normalize(&across,&across);
-            path.push_back({D3DXVECTOR3(x,terrain.getTerrainCollision({x,z}),z),half});
+            const float t=static_cast<float>(row)/rows,z=t*WorldLayout::Extent,x=WorldLayout::RiverX(z),half=WorldLayout::RiverHalfWidth(z);
+            const float y=WorldLayout::RiverHeight(z)+.08f;
             for(unsigned col=0;col<=columns;++col)
             {
-                const float u=static_cast<float>(col)/columns;D3DXVECTOR3 p,n;
-                if(!terrain.SampleTerrainSurface({x+across.x*(u*2-1)*half,z+across.y*(u*2-1)*half},p,n))return false;
-                p.y+=.14f;mesh.push_back({p,{u,t*12},n});
+                const float u=static_cast<float>(col)/columns;
+                D3DXVECTOR3 p(x+(u*2-1)*half,y,z),n(0,1,-(WorldLayout::RiverHeight(z+1)-WorldLayout::RiverHeight(z-1))*.5f);D3DXVec3Normalize(&n,&n);
+                mesh.push_back({p,{u,z/12},n});
                 if(row<rows && col<columns)
                 {const unsigned a=row*(columns+1)+col,b=a+1,c=a+columns+1,d=c+1;for(unsigned i:{a,c,b,b,c,d})triangles.push_back(i);}
             }
@@ -93,7 +85,7 @@ public:
         FLOAT factors[4];UINT mask,ref;context->OMGetBlendState(&oldBlend,factors,&mask);context->OMGetDepthStencilState(&oldDepth,&ref);context->RSGetState(&oldRaster);
         context->OMSetBlendState(blend,nullptr,0xffffffff);context->OMSetDepthStencilState(depth,0);context->RSSetState(raster);
         ViewData data;const D3DXMATRIX vp=camera.View*camera.Projection;D3DXMatrixTranspose(&data.viewProjection,&vp);
-        data.camera=D3DXVECTOR4(camera.Position.x,camera.Position.y,camera.Position.z,1);data.time=D3DXVECTOR4(seconds,waveAmplitude,1.0f/128,0);
+        data.camera=D3DXVECTOR4(camera.Position.x,camera.Position.y,camera.Position.z,1);data.time=D3DXVECTOR4(seconds,waveAmplitude,1.0f/128,WorldLayout::Extent/12);
         context->UpdateSubresource(constants,0,nullptr,&data,0,0);context->VSSetConstantBuffers(1,1,&constants);context->PSSetConstantBuffers(1,1,&constants);
         context->UpdateSubresource(lighting,0,nullptr,&light,0,0);context->PSSetConstantBuffers(0,1,&lighting);
         UINT stride=sizeof(Vertex),offset=0;context->IASetVertexBuffers(0,1,&vertices,&stride,&offset);context->IASetIndexBuffer(indices,DXGI_FORMAT_R32_UINT,0);
@@ -102,6 +94,6 @@ public:
         context->OMSetBlendState(oldBlend,factors,mask);context->OMSetDepthStencilState(oldDepth,ref);context->RSSetState(oldRaster);Free(oldBlend);Free(oldDepth);Free(oldRaster);
     }
     void Release()
-    {Free(vertices);Free(indices);Free(constants);Free(lighting);Free(vs);Free(ps);Free(layout);Free(noise);Free(sampler);Free(blend);Free(depth);Free(raster);path.clear();indexCount=0;}
+    {Free(vertices);Free(indices);Free(constants);Free(lighting);Free(vs);Free(ps);Free(layout);Free(noise);Free(sampler);Free(blend);Free(depth);Free(raster);indexCount=0;}
 };
 #endif

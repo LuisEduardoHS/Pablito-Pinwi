@@ -3,7 +3,7 @@ cbuffer WaterView : register(b1)
 {
     float4x4 ViewProjection;
     float4 CameraPosition;
-    float4 WaterTime; // seconds, wave amplitude, inverse noise texture size, padding
+    float4 WaterTime; // seconds, wave amplitude, inverse noise texture size, UV length
 };
 struct Pixel
 {
@@ -22,8 +22,8 @@ Texture2D FlowTexture : register(t0);
 SamplerState FlowSampler : register(s0);
 float4 PS(Pixel input) : SV_Target
 {
-    float2 flowA=float2(input.uv.x*1.6f,input.uv.y*.7f-WaterTime.x*.16f);
-    float2 flowB=float2(input.uv.x*2.7f+WaterTime.x*.035f,input.uv.y*.43f-WaterTime.x*.10f);
+    float2 flowA=float2(input.uv.x*1.6f,input.uv.y*.7f+WaterTime.x*.16f);
+    float2 flowB=float2(input.uv.x*2.7f+WaterTime.x*.035f,input.uv.y*.43f+WaterTime.x*.10f);
     float a=FlowTexture.Sample(FlowSampler,flowA).r,b=FlowTexture.Sample(FlowSampler,flowB).g;
     float step=WaterTime.z;
     float dx=FlowTexture.Sample(FlowSampler,flowA+float2(step,0)).r-FlowTexture.Sample(FlowSampler,flowA-float2(step,0)).r;
@@ -43,6 +43,6 @@ float4 PS(Pixel input) : SV_Target
     float foam=saturate(streak*1.5f+shore*(.28f+.32f*b));
     color=lerp(color,float3(.71f,.91f,.91f)*(.45f+.55f*NightSky.x),foam);
     float alpha=(.80f+.16f*fresnel)*smoothstep(0,.025f,edge);
-    alpha*=smoothstep(0,.25f,input.uv.y)*smoothstep(0,.25f,12-input.uv.y);
+    alpha*=smoothstep(0,.25f,input.uv.y)*smoothstep(0,.25f,WaterTime.w-input.uv.y);
     return float4(color,alpha);
 }

@@ -48,8 +48,7 @@ utensilio de animación, omitida en la actualización anterior de main.
   entregas, triturado/mezcla/calor/embotellado, victoria, derrota y reinicio.
 - Capturas revisadas de las dos mesas y de ingredientes en manos de Pablito.
 
-La regresión general del mapa anterior no pasó tras sincronizar `7461e57`:
-una posición candidata del fogón no quedó conectada a la cuadrícula de navegación
-del ensayo y E desde el inicio ya no montó la nube nueva. Las pruebas específicas
-de ingredientes y alquimia anteriores no incluyen esa comprobación de navegación
-ni la de montar la nube; esos cambios del escenario se conservaron.
+Los problemas de acceso al fogón y de montaje de la nube detectados al
+sincronizar `7461e57` se resolvieron en la reorganización descrita en `PUEBLO.md`.
+El taller completo está ahora dentro de la casa principal y las entregas se
+encuentran junto a las casas secundarias al final de los caminos.

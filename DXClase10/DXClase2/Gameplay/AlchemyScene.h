@@ -3,6 +3,7 @@
 #include "AlchemyGame.h"
 #include "../MeshPrimitives.h"
 #include "../SceneEffects.h"
+#include "../WorldLayout.h"
 
 namespace Alchemy
 {
@@ -32,12 +33,27 @@ class Scene
         D3DXMATRIX s,r,t;D3DXMatrixScaling(&s,size.x,size.y,size.z);D3DXMatrixRotationYawPitchRoll(&r,yaw,pitch,0);
         D3DXMatrixTranslation(&t,p.x,p.y,p.z);return s*r*t;
     }
-    void Place(MPrimitives* mesh,Position p,Position scale=Position(1,1,1),float pitch=0)
-    {D3DXMATRIX world=Matrix(p,scale,0,pitch);mesh->UpdateScene(world);props.push_back({mesh,world,propTarget});}
-    MPrimitives* Table(float x,float z,float floor)
+    static Position HousePosition(float x,float y,float z)
+    {const auto p=WorldLayout::HousePoint(x,y,z);return {p.x,p.y,p.z};}
+    void Place(MPrimitives* mesh,Position p,Position scale=Position(1,1,1),float pitch=0,float yaw=0)
+    {D3DXMATRIX world=Matrix(p,scale,yaw,pitch);mesh->UpdateScene(world);props.push_back({mesh,world,propTarget});}
+    MPrimitives* Table(float x,float z)
     {
         auto* mesh=Own(new MPrimitives(device,context,"Models/PablitoPinwi/Mesa.txt",L"Models/PablitoPinwi/Mesa.png",L"",ShaderDiffuse));
-        if(!mesh->IsModelLoaded())valid=false;Place(mesh,{x,floor,z},{4,4,4});return mesh;
+        if(!mesh->IsModelLoaded())valid=false;Place(mesh,HousePosition(x,.03f,z),{4,4,4},0,WorldLayout::HouseYaw());return mesh;
+    }
+    void Bridge()
+    {
+        propTarget=-1;const float pitch=-atanf(WorldLayout::BridgeSlope),yaw=WorldLayout::BridgeYaw();
+        const unsigned planks=30;const float length=WorldLayout::BridgeLength/planks;
+        for(unsigned i=0;i<planks;++i)
+        {auto p=WorldLayout::BridgePoint(-WorldLayout::BridgeLength*.5f+(i+.5f)*length);Place(Cube(143+(i%3)*5,99+(i%3)*3,62+(i%3)*2),{p.x,p.y,p.z},{WorldLayout::BridgeWidth,.35f,length*sqrtf(1+WorldLayout::BridgeSlope*WorldLayout::BridgeSlope)},pitch,yaw);}
+        for(float side:{-WorldLayout::BridgeWidth*.48f,WorldLayout::BridgeWidth*.48f})
+        {
+            auto rail=WorldLayout::BridgePoint(0,side,1.35f);Place(Cube(114,76,47),{rail.x,rail.y,rail.z},{.20f,.20f,WorldLayout::BridgeLength},pitch,yaw);
+            for(float along=-WorldLayout::BridgeLength*.5f;along<=WorldLayout::BridgeLength*.5f;along+=10)
+            {auto p=WorldLayout::BridgePoint(along,side,.75f);Place(Cube(114,76,47),{p.x,p.y,p.z},{.3f,1.5f,.3f},0,yaw);}
+        }
     }
     MPrimitives* ItemMesh(const Item& item) const
     {return static_cast<int>(item.type)<6?ingredients[static_cast<int>(item.type)]:bottle;}
@@ -61,28 +77,30 @@ public:
     {
         Release();device=d;context=c;valid=true;lastColor=-1;bottle=existingBottle;bottle->SetCollisionEnabled(false);
         auto floor=[&](float x,float z){return terrain->getTerrainCollision(D3DXVECTOR2(x,z));};
-        auto* supplyA=Table(375,399,floor(375,399));auto* supplyB=Table(375,407,floor(375,407));
+        // Interior footing above the terrain, contained by the existing walls.
+        Place(Cube(133,100,70),HousePosition(7,.015f,0),{30,.10f,14},0,WorldLayout::HouseYaw());
+        auto* supplyA=Table(-4,-5);auto* supplyB=Table(-4,5);
         for(int i=0;i<6;++i)
-        {float z=i<3?399.0f:407.0f;game.layout.sources[i]=Position(374.0f+i%3,floor(375,z)+(i<3?supplyA:supplyB)->GetModelHeight()*4,z);}
-        game.layout.bottle=Position(384,floor(384,403)+supplyA->GetModelHeight()*4,403);
-        propTarget=10;auto* mortarTable=Table(390,395,floor(390,395));
+        {float z=i<3?-5.0f:5.0f;game.layout.sources[i]=HousePosition(-5.0f+i%3,.03f+(i<3?supplyA:supplyB)->GetModelHeight()*4,z);}
+        game.layout.bottle=HousePosition(9,.03f+supplyA->GetModelHeight()*4,-5);
+        propTarget=10;auto* mortarTable=Table(4,-6);
         auto* mortar=Cylinder(0.65f,0.48f,117,107,139);
-        Position mortarPos(390,floor(390,395)+mortarTable->GetModelHeight()*4+0.24f,395);Place(mortar,mortarPos);
-        game.layout.stations[0]=Position(390,mortarPos.y+0.05f,395);stationColliders[0]=mortar->GetCollider();
-        propTarget=11;auto* cauldron=Cylinder(1.35f,1.7f,58,50,79);Place(cauldron,{401,floor(401,392)+1.25f,392});stationColliders[1]=cauldron->GetCollider();
+        Position mortarPos=HousePosition(4,.03f+mortarTable->GetModelHeight()*4+.24f,-6);Place(mortar,mortarPos);
+        game.layout.stations[0]=Position(mortarPos.x,mortarPos.y+.30f,mortarPos.z);stationColliders[0]=mortar->GetCollider();
+        propTarget=11;auto* cauldron=Cylinder(1.35f,1.7f,58,50,79);Place(cauldron,HousePosition(16,1.28f,5));stationColliders[1]=cauldron->GetCollider();
         auto* rim=Own(new MPrimitives(d,c,16,24,1.30f,0.14f,L"",L"",ShaderDiffuse));if(!rim->SetSolidColor(150,126,182))valid=false;
-        Place(rim,{401,floor(401,392)+2.12f,392},{1,1,1},D3DX_PI*0.5f);
-        for(float x:{-0.8f,0.8f}) Place(Cube(58,50,79),{401+x,floor(401,392)+0.30f,392},{0.35f,0.6f,0.7f});
-        liquid=Cylinder(1.15f,0.08f,78,67,114);liquid->SetCollisionEnabled(false);Place(liquid,{401,floor(401,392)+2.10f,392});
-        game.layout.stations[1]=Position(401,floor(401,392)+2.3f,392);
-        game.layout.stations[2]=Position(394,floor(394,412)+1.5f,412);stationColliders[2]=existingFurnace->GetCollider();
+        Place(rim,HousePosition(16,2.15f,5),{1,1,1},D3DX_PI*0.5f);
+        for(float x:{-.8f,.8f})Place(Cube(58,50,79),HousePosition(16+x,.33f,5),{.35f,.6f,.7f},0,WorldLayout::HouseYaw());
+        liquid=Cylinder(1.15f,0.08f,78,67,114);liquid->SetCollisionEnabled(false);Place(liquid,HousePosition(16,2.13f,5));
+        game.layout.stations[1]=HousePosition(16,2.33f,5);
+        game.layout.stations[2]=HousePosition(7,1.53f,6);stationColliders[2]=existingFurnace->GetCollider();
         propTarget=12;fire=Own(new MPrimitives(d,c,12,16,0.38f,L"",L"",ShaderDiffuse));if(!fire->SetSolidColor(255,149,51))valid=false;
-        fire->SetCollisionEnabled(false);Place(fire,{394,floor(394,412)+0.8f,412});
-        propTarget=13;auto* bottlerTable=Table(390,407,floor(390,407));stationColliders[3]=bottlerTable->GetCollider();
-        const float top=floor(390,407)+bottlerTable->GetModelHeight()*4;
-        Place(Cylinder(0.12f,1.3f,162,159,177),{390.9f,top+0.65f,407});
-        Place(Cube(162,159,177),{390.3f,top+1.25f,407},{1.3f,0.18f,0.25f});
-        game.layout.stations[3]=Position(390,top,407);
+        fire->SetCollisionEnabled(false);Place(fire,HousePosition(7,.83f,6));
+        propTarget=13;auto* bottlerTable=Table(15,-4);stationColliders[3]=bottlerTable->GetCollider();
+        const float top=.03f+bottlerTable->GetModelHeight()*4;
+        Place(Cylinder(.12f,1.3f,162,159,177),HousePosition(15.9f,top+.65f,-4));
+        Place(Cube(162,159,177),HousePosition(15.3f,top+1.25f,-4),{1.3f,.18f,.25f},0,WorldLayout::HouseYaw());
+        game.layout.stations[3]=HousePosition(15,top,-4);
         const char* ingredientModelPaths[6] = {
             "Models/ingredientes/hongorojo.txt",
             "Models/ingredientes/florazul.txt",
@@ -105,6 +123,9 @@ public:
             ingredients[i]=mesh;
         }
         const unsigned char signColors[3][3]={{238,184,68},{75,153,238},{84,190,118}};
+        game.layout.deliveries.clear();
+        for(const auto& house:WorldLayout::SecondaryHouses)
+        {game.layout.deliveries.push_back({house.delivery.x,house.delivery.y,house.delivery.z});}
         const wchar_t* houseSignTextures[3] = {
             L"Texturas/CartelesCasas/vecina.jpeg",
             L"Texturas/CartelesCasas/mensajero.jpeg",
@@ -115,6 +136,10 @@ public:
         deliverySignPositions.resize(game.layout.deliveries.size());
         for(size_t i=0;i<game.layout.deliveries.size();++i)
         {
+            propTarget=-1;const auto& house=WorldLayout::SecondaryHouses[i];
+            auto* dwelling=Own(new MPrimitives(d,c,"Models/PablitoPinwi/casa_pablo.txt",L"Models/PablitoPinwi/casa.png",L"",ShaderDiffuse,true));
+            if(!dwelling->IsModelLoaded())valid=false;
+            Place(dwelling,{house.center.x,house.center.y,house.center.z},{2.2f,2.2f,2.2f},0,D3DXToRadian(house.yawDegrees));
             propTarget=20+static_cast<int>(i);
             Position p=game.layout.deliveries[i];p.y=floor(p.x,p.z);
             auto* pole=Cylinder(0.15f,2.8f,116,88,62);Place(pole,{p.x,p.y+1.4f,p.z});deliveryColliders[i]=pole->GetCollider();
@@ -126,7 +151,7 @@ public:
             bb->SetCollisionEnabled(false);
             deliveryBillboards[i]=bb;
         }
-        game.Restart();return valid;
+        Bridge();game.Restart();return valid;
     }
     const SceneCollision::MeshCollider* IgnoreFor(const Target& target) const
     {

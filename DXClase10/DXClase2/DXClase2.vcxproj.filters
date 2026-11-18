@@ -34,6 +34,7 @@
     </ClInclude>
     <ClInclude Include="SceneEffects.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="WaterStream.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="WorldLayout.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="SunLight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -260,6 +261,9 @@
     <None Include="Texturas\Pantallas\boton-reiniciar.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Pantallas\boton-salir.png"><Filter>Resource Files</Filter></None>
     <None Include="PANTALLAS.md"><Filter>Resource Files</Filter></None>
+    <None Include="Tools\world_layout.py"><Filter>Source Files</Filter></None>
+    <None Include="WorldLayout.json"><Filter>Resource Files</Filter></None>
+    <None Include="PUEBLO.md"><Filter>Resource Files</Filter></None>
     <None Include="INGREDIENTES.md"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\paleta.png"><Filter>Resource Files</Filter></None>
     <None Include="Models\ingredientes\hongorojo.obj"><Filter>Resource Files</Filter></None>

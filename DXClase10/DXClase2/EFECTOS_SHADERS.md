@@ -23,12 +23,13 @@ opcional `materialOverride` de `MPrimitives::DrawScene` permite usar ese materia
 los objetos sin efecto siguen dibujándose con su shader original. La emisión es
 del material: no requiere otro sistema de luces ni un pase de bloom.
 
-## Arroyo provisional
+## Río del valle
 
-`WaterStream.h` crea una cinta subdividida entre aproximadamente X=333–341 y
-Z=350–445, al oeste del pueblo. Sigue la altura del terreno y no cruza caminos.
-La malla es únicamente visual y no agrega colisiones ni modifica el heightmap.
-La vegetación deja libre su huella mediante un filtro opcional de distribución.
+`WaterStream.h` crea una superficie subdividida de norte a sur, entre Z=0 y
+Z=1152, con 24–34 unidades de ancho. `WorldLayout.json` define la curva y las
+alturas; `Tools/generate_valley.py` excava su cauce en el heightmap. La vegetación
+deja libre el agua y los márgenes. Un puente con colisiones mantiene conectado
+el camino occidental. La nube usa también la superficie del agua como apoyo.
 
 `waterStream.hlsl` desplaza los vértices con ondas pequeñas y desplaza dos capas
 de UV a distinta velocidad. Una textura periódica generada de 128×128, con
@@ -43,7 +44,7 @@ escribir profundidad; restaura los estados de mezcla, profundidad y rasterizado.
 - `AlchemyScene`: emisión por poción y asociación de las piezas de cada estación.
 - `SceneEffects`: colores y fuerza del resaltado; `b0` y `b2` siguen reservados
   a iluminación/sombras, `b3` contiene los efectos de material.
-- `WaterStream::waveAmplitude`: amplitud de las ondas; `Init` define trazado/ancho.
+- `WaterStream::waveAmplitude`: amplitud de las ondas; `WorldLayout.json` define trazado/ancho.
 - `waterStream.hlsl`: velocidad de UV, colores, espuma y reflejos; su buffer usa
   `b1` y sus recursos `t0/s0`, sin ocupar los de sol, luna o estrellas.
 

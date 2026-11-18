@@ -153,6 +153,12 @@ configurables en `Recipe` y `Rules`.
 
 ## Inicio y pantallas de resultado
 
+La distribución del escenario se documenta en `PUEBLO.md`: el taller completo
+está dentro de la casa principal y las entregas se hacen en las casas pequeñas
+al final de los tres ramales. El río atraviesa el valle y un puente conserva
+la conexión occidental. La nube permite recorrer las rutas más rápido y
+mantiene la tercera persona mientras se conduce.
+
 Cada ejecución abre una pantalla con el letrero ilustrado Pablito Pinwi y
 un único botón Jugar. La escena se carga previamente; los pedidos, el reloj,
 el movimiento y las interacciones permanecen detenidos hasta pulsar el botón.

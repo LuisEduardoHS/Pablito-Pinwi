@@ -102,6 +102,7 @@
     <ClInclude Include="SunLight.h" />
     <ClInclude Include="SceneEffects.h" />
     <ClInclude Include="WaterStream.h" />
+    <ClInclude Include="WorldLayout.h" />
     <ClInclude Include="DayNightCycle.h" />
     <ClInclude Include="Vegetation.h" />
     <ClInclude Include="InteractionPrompt.h" />
@@ -122,6 +123,9 @@
     <None Include="Texturas\Pablito_Valley_513.bmp" />
     <None Include="Texturas\Pablito_Valley_Paths.png" />
     <None Include="Tools\generate_valley.py" />
+    <None Include="Tools\world_layout.py" />
+    <None Include="WorldLayout.json" />
+    <None Include="PUEBLO.md" />
     <None Include="Tools\check_valley.py" />
     <None Include="Texturas\Meshpart1_diff.png" />
     <None Include="Texturas\dirt_diff.png" />

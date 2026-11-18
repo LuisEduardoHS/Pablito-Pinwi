@@ -13,6 +13,7 @@ import struct
 
 import numpy as np
 from PIL import Image
+import world_layout as layout
 
 SIZE = 513
 MASK_SIZE = 1025
@@ -23,7 +24,7 @@ ROUTES = [
     # Main valley route skirts the east side of the house before the pass.
     (18.0, [(375, 100), (365, 240), (384, 380), (406, 414), (430, 478),
             (465, 545), (555, 625), (650, 700), (735, 825), (850, 950), (930, 1050)]),
-    (16.0, [(465, 545), (365, 600), (265, 690), (200, 805), (170, 970)]),
+    (16.0, [(465, 545), (365, 600), *layout.bridge_controls()[0], (200, 805), (170, 970)]),
     (16.0, [(555, 625), (690, 565), (815, 535), (940, 600), (1030, 745)]),
     (14.0, [(365, 240), (500, 230), (650, 300), (755, 405), (815, 535)]),
     (12.0, [(384, 380), (370, 403), (384, 416)]),
@@ -32,7 +33,7 @@ ROUTES = [
 # that simply climb whatever steep peak happens to be underneath them.
 ROUTE_LEVELS = [
     [28, 30, 30, 30, 34, 42, 52, 68, 91, 112, 125],
-    [42, 52, 66, 85, 110],
+    [42, 52, *layout.bridge_controls()[1], 85, 110],
     [52, 58, 70, 86, 110],
     [30, 34, 42, 57, 70],
     [30, 30, 30],
@@ -181,6 +182,7 @@ def grid(size):
 
 
 def build(height_only=False):
+    layout.write_header()
     textures = PROJECT / 'Texturas'
     x, z = grid(SIZE)
     heights = erode_massifs(base_height(x, z))
@@ -190,6 +192,22 @@ def build(height_only=False):
     # Reassert the terrace after road blending: furniture has a common footing.
     plaza = np.hypot((x-384)/55, (z-414)/65)
     heights = 30 + (heights-30)*smooth(0.8, 1.4, plaza)
+    # Level plots for the closed secondary houses at the three road termini.
+    for house in layout.DATA['secondary_houses']:
+        hx,hy,hz=house['center'];d=np.hypot(x-hx,z-hz)
+        weight=1-smooth(18,40,d);heights=heights*(1-weight)+(hy-.08)*weight
+    # Excavate a continuous channel from the north mountains to the south edge.
+    river_distance=np.abs(x-layout.river_x(z));half=layout.river_half_width(z)
+    bed=layout.river_height(z)-1.25
+    weight=1-smooth(half-1,half+12,river_distance)
+    heights=heights*(1-weight)+bed*weight
+    # Flat approaches meet the sloping bridge deck, while its channel stays open.
+    along,side=layout.bridge_coordinates(x,z);bridge=layout.DATA['bridge']
+    approach=(1-smooth(bridge['width']/2,bridge['width']/2+4,np.abs(side)))
+    approach*=1-smooth(bridge['length']/2,bridge['length']/2+7,np.abs(along))
+    approach*=smooth(half+1,half+5,river_distance)
+    deck=bridge['center'][1]+along*bridge['slope']+.05
+    heights=heights*(1-approach)+deck*approach
     encoded = np.rint(np.clip(heights/MAX_HEIGHT, 0, 1)*65535).astype(np.uint16)
     pixels = np.empty((SIZE, SIZE, 4), dtype=np.uint8)
     pixels[:, :, :3] = (encoded >> 8)[:, :, None]
@@ -214,6 +232,19 @@ def build(height_only=False):
     plaza = np.hypot((x-384)/24, (z-414)/27)
     road = np.maximum(road, 1-smooth(0.85,1.06,plaza))
     shoulder = np.maximum(shoulder, 1-smooth(1,1.25,plaza))
+    for house in layout.DATA['secondary_houses']:
+        hx,_,hz=house['center'];plot=np.hypot(x-hx,z-hz)
+        road=np.maximum(road,1-smooth(15,20,plot))
+        shoulder=np.maximum(shoulder,1-smooth(20,25,plot))
+    # Short, broad approach to the actual east-side doorway of the main house.
+    a,b=np.array([406.,414.]),np.array([395.8,411.3]);delta=b-a
+    t=np.clip(((x-a[0])*delta[0]+(z-a[1])*delta[1])/np.dot(delta,delta),0,1)
+    entrance=np.hypot(x-a[0]-t*delta[0],z-a[1]-t*delta[1])
+    road=np.maximum(road,1-smooth(3,4,entrance));shoulder=np.maximum(shoulder,1-smooth(4,6,entrance))
+    river_distance=np.abs(x-layout.river_x(z));half=layout.river_half_width(z)
+    water=1-smooth(half-1,half+1,river_distance)
+    road*=1-water
+    shoulder=np.maximum(shoulder,(1-smooth(half+1,half+6,river_distance))*(1-water))
     macro = np.clip(0.5+0.32*noise(x,z,90,26)+0.18*noise(x,z,27,11),0,1)
     control = np.stack([road, shoulder, macro],axis=-1)
     Image.fromarray(np.rint(control[::-1]*255).astype(np.uint8)).save(textures/'Pablito_Valley_Paths.png')
