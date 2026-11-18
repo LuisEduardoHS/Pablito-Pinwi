@@ -20,7 +20,7 @@ cbuffer SunBuffer : register(b2)
     float4 SunSky;    // inner/outer disk cosine, halo exponent, halo strength
     float4 MoonDirection; // direction, visibility
     float4 MoonRight;     // billboard right, tangent of angular radius
-    float4 MoonUp;        // billboard up, star texture exposure
+    float4 MoonUp;        // billboard up, night painting exposure
     float4 NightSky;      // daylight, stars, twilight, star rotation
 };
 Texture2D<float> SunShadowMap : register(t3);

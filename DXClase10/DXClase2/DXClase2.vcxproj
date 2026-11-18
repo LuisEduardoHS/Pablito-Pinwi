@@ -202,6 +202,7 @@
     <None Include="Texturas\pipe.png" />
     <None Include="Texturas\corner_pipe.png" />
     <None Include="Texturas\skybox.png" />
+    <None Include="Texturas\skybox-night.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Models\pablitopinwi_textured.txt" />

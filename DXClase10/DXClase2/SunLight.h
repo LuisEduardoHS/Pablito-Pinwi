@@ -17,16 +17,16 @@ public:
     float shadowDepth;
     float diskRadiusDegrees;
     float moonRadiusDegrees;
-    float starsExposure;
+    float nightSkyExposure;
     enum { ShadowResolution = 2048 };
 
     SunLight() : directionToSun(-0.35f, 0.65f, 0.68f), color(1.0f, 0.95f, 0.84f),
         ambient(0.30f, 0.35f, 0.42f), intensity(0.95f), shadowStrength(1.0f),
         shadowCoverage(180.0f), shadowDepth(2200.0f), diskRadiusDegrees(0.65f),
-        moonRadiusDegrees(1.5f), starsExposure(1.5f), dynamicSky(false),
+        moonRadiusDegrees(1.15f), nightSkyExposure(1.0f), dynamicSky(false),
         shadowTexture(NULL), shadowDSV(NULL), shadowSRV(NULL), comparisonSampler(NULL),
         shadowRaster(NULL), shadowDepthState(NULL), shadowVS(NULL), shadowPS(NULL),
-        shadowLayout(NULL), sunBuffer(NULL), moonTexture(NULL), starsTexture(NULL), skySampler(NULL),
+        shadowLayout(NULL), sunBuffer(NULL), moonTexture(NULL), nightSkyTexture(NULL), skySampler(NULL),
         savedTarget(NULL), savedDepth(NULL),
         savedRaster(NULL), savedDepthState(NULL), savedStencilRef(0)
     {
@@ -104,7 +104,7 @@ public:
         D3DXVec3Normalize(&moonUp, &moonUp);
         data.moonDirection = D3DXVECTOR4(moon.x, moon.y, moon.z, dynamicSky ? skyState.moonVisibility : 0);
         data.moonRight = D3DXVECTOR4(right.x, right.y, right.z, tanf(D3DXToRadian(moonRadiusDegrees)));
-        data.moonUp = D3DXVECTOR4(moonUp.x, moonUp.y, moonUp.z, starsExposure);
+        data.moonUp = D3DXVECTOR4(moonUp.x, moonUp.y, moonUp.z, nightSkyExposure);
         data.night = dynamicSky ? D3DXVECTOR4(skyState.daylight, skyState.starsVisibility,
             skyState.twilight, skyState.starRotation) : D3DXVECTOR4(1, 0, 0, 0);
         context->UpdateSubresource(sunBuffer, 0, NULL, &data, 0, 0);
@@ -150,7 +150,7 @@ public:
         context->PSSetConstantBuffers(2, 1, &sunBuffer);
         context->PSSetShaderResources(3, 1, &shadowSRV);
         context->PSSetSamplers(1, 1, &comparisonSampler);
-        context->PSSetShaderResources(4, 1, &starsTexture);
+        context->PSSetShaderResources(4, 1, &nightSkyTexture);
         context->PSSetShaderResources(5, 1, &moonTexture);
         context->PSSetSamplers(2, 1, &skySampler);
     }
@@ -160,7 +160,7 @@ public:
         Free(shadowDSV); Free(shadowSRV); Free(shadowTexture); Free(comparisonSampler);
         Free(shadowRaster); Free(shadowDepthState); Free(shadowVS); Free(shadowPS);
         Free(shadowLayout); Free(sunBuffer);
-        Free(moonTexture); Free(starsTexture); Free(skySampler);
+        Free(moonTexture); Free(nightSkyTexture); Free(skySampler);
     }
 
 private:
@@ -184,7 +184,7 @@ private:
     ID3D11InputLayout* shadowLayout;
     ID3D11Buffer* sunBuffer;
     ID3D11ShaderResourceView* moonTexture;
-    ID3D11ShaderResourceView* starsTexture;
+    ID3D11ShaderResourceView* nightSkyTexture;
     ID3D11SamplerState* skySampler;
     ID3D11RenderTargetView* savedTarget;
     ID3D11DepthStencilView* savedDepth;
@@ -252,8 +252,8 @@ private:
             result = device->CreateInputLayout(layout, ARRAYSIZE(layout), vs->GetBufferPointer(), vs->GetBufferSize(), &shadowLayout);
         Free(vs); Free(ps);
         if (FAILED(result)) return false;
-        const LPCWSTR textures[] = { L"Texturas/T_Stars.png", L"Texturas/T_Moon.png" };
-        ID3D11ShaderResourceView** views[] = { &starsTexture, &moonTexture };
+        const LPCWSTR textures[] = { L"Texturas/skybox-night.png", L"Texturas/T_Moon.png" };
+        ID3D11ShaderResourceView** views[] = { &nightSkyTexture, &moonTexture };
         for (int i = 0; i < 2; ++i)
         {
             if (FAILED(D3DX11CreateShaderResourceViewFromFile(device, textures[i], NULL, NULL, views[i], NULL)))

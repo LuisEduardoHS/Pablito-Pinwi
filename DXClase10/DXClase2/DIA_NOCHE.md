@@ -22,8 +22,9 @@ normal. Una vuelta completa con aceleración tarda unos 10 segundos.
 - El amanecer y el atardecer mezclan gradualmente el cielo diurno con tonos
   cálidos cerca del horizonte. La luz directa cambia de color y de intensidad.
 - Al oscurecer, desaparece el disco solar y se desvanece el cielo diurno. Las
-  estrellas aparecen suavemente y el fondo pasa a un gradiente azul oscuro.
-- La luna utiliza la textura entregada y una máscara circular para evitar que
+  estrellas pintadas aparecen con una edición nocturna del mismo cielo diurno.
+  Ambas imágenes comparten las coordenadas UV para conservar las nubes.
+- La luna utiliza una edición pintada de la textura entregada y una máscara circular para evitar que
   sus esquinas negras tapen un rectángulo del cielo. Tiene un halo suave.
 - Durante la noche, la luna ilumina con un tono azul suave y proyecta sombras
   reales usando el mismo sistema de profundidad del sol. El ambiente nocturno
@@ -31,15 +32,18 @@ normal. Una vuelta completa con aceleración tarda unos 10 segundos.
   El cielo y la bruma también son más claros para distinguir las montañas.
 - El cambio de luz solar a lunar ocurre en el horizonte con ambas intensidades
   directas en cero, de modo que no aparece un salto visible de sombras.
-- Las estrellas giran lentamente con la hora. Al cruzar medianoche, el reloj,
-  las órbitas y la textura panorámica continúan sin un reinicio visible.
+- Las estrellas forman parte de la pintura nocturna y permanecen con sus nubes.
+  Al cruzar medianoche, el reloj y las órbitas continúan sin un reinicio visible.
 
 ## Texturas integradas
 
-`Texturas/T_Moon.png` (1024 × 1024, RGBA) y `Texturas/T_Stars.png`
-(8192 × 4096, RGB) son copias exactas de los archivos proporcionados.
-Se conservan sus resoluciones, colores y datos originales. El brillo se ajusta
-en el shader, sin modificar las imágenes.
+`Texturas/skybox.png` se conserva como cielo de día. `Texturas/skybox-night.png`
+es una edición de esa misma pintura: azul índigo, nubes lavanda y estrellas
+sencillas, sin galaxias fotográficas. `Texturas/T_Moon.png` es una edición de la
+luna existente, con pinceladas amplias y manchas simplificadas. La fotografía
+`Texturas/T_Stars.png` se conserva en el repositorio pero ya no se carga.
+Las dos ediciones se hicieron con la herramienta integrada de edición de imágenes,
+usando los archivos existentes como objetivos de edición, sin crear escenas desde cero.
 
 ## Ajustes
 
@@ -55,8 +59,9 @@ En `DayNightCycle.h`:
 | Intensidad lunar máxima | 0.60 | Luz directa de noche, en `GetState()` |
 | Ambiente nocturno | (0.32, 0.38, 0.48) | Claridad y tono de las zonas sin luz directa |
 
-En `SunLight.h`, `moonRadiusDegrees = 1.5` ajusta el tamaño de la luna y
-`starsExposure = 1.5` el brillo de las estrellas. Se mantienen los ajustes
+En `SunLight.h`, `moonRadiusDegrees = 1.15` ajusta el tamaño de la luna (23 %
+menor en diámetro que antes) y `nightSkyExposure = 1.0` el brillo de la pintura
+nocturna. Se mantienen los ajustes
 `diskRadiusDegrees`, `shadowCoverage`, `shadowDepth`, `shadowStrength` y
 `ShadowResolution` del sistema de sombras existente. La dirección, color,
 ambiente e intensidad de la luz activa los calcula ahora `DayNightCycle`.
@@ -83,3 +88,17 @@ y sombra de la luna, máscara circular, aparición/desaparición de estrellas y
 varias horas del día. La capa de depuración no reportó advertencias ni errores.
 También pasaron las regresiones de personaje y cámaras, F6 con repetición
 ignorada y aceleración mediante entrada XInput simulada.
+
+## Indicaciones de las ediciones de imagen
+
+Herramienta: editor de imágenes integrado (`image_gen`), modo edición de archivos
+existentes. Objetivos: `skybox.png` y `T_Moon.png`; el cielo diurno también sirve
+como referencia de estilo para la luna. Indicaciones enviadas:
+
+**Cielo nocturno**
+
+> Use case: lighting-weather. EDIT TARGET: the supplied existing 2048x1024 game skybox texture. Convert THIS SAME painting to night; do not create a different scene. Preserve exactly the panoramic composition, cloud silhouettes and locations, horizon at middle, texture orientation, painterly brushwork, and unadorned bottom hemisphere. Recolor the blue sky to deep navy/indigo and the cream clouds to muted dusty blue/lavender moonlit clouds. Keep clouds legible against dark sky but subdued. Add sparse, small simple painted ivory/pale-blue stars ONLY in the clear sky between clouds, not on clouds, no galaxies or Milky Way or photographic noise. Keep a friendly stylized storybook game look consistent with the source. No moon and no sun embedded, those are separately rendered by the engine. Preserve 2:1 image and original UV layout; avoid added scenery, text, trees, mountains or any new cloud formations. Left/right wrap should be unobtrusive. This is an edit of the existing texture, not a new sky.
+
+**Luna**
+
+> Use case: style-transfer. EDIT TARGET image1 existing circular full Moon texture. Image2 is supporting STYLE reference only, the painterly existing game sky. Simplify and repaint THIS SAME full Moon: keep centered circular full disk, exact silhouette/size filling the square edge to edge, and existing broad dark lunar marking locations. Remove photographic detail, fine craters, sharp realistic surface grain. Use soft broad painterly brush strokes and a few large simplified moon markings, friendly stylized game art matching image2. Pale ivory/light muted blue disk with subtle lavender blue-gray markings, bright but with gentle contrast; no face, no extra objects, no halo, no stars. Outside the exact circular disk retain pure black, no extra padding. The engine will reduce on-screen size separately. Do not generate a different moon or change the full circle to a crescent. Output square texture.
