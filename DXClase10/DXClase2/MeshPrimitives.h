@@ -5,6 +5,7 @@
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include "ShaderCompiler.h"
 #include "SceneCollision.h"
 
@@ -1143,41 +1144,164 @@ public:
 		}
 	}
 
-	// Converted OBJ reader. A malformed file must fail rather than loop at EOF.
-	bool LoadModel(const char* filename, bool centerBase = false)
+	bool LoadOBJFile(const char* filename, std::vector<SimpleVertex>& outVertices)
 	{
 		std::ifstream file(filename);
-		std::string header;
-		UINT count = 0;
-		if (!std::getline(file, header) || header.find("Vertex Count:") != 0)
-			return false;
-		try
+		if (!file.is_open()) return false;
+		std::vector<D3DXVECTOR3> positions;
+		std::vector<D3DXVECTOR2> texcoords;
+		std::vector<D3DXVECTOR3> normals;
+		std::string line;
+		while (std::getline(file, line))
 		{
-			const unsigned long parsed = std::stoul(header.substr(13));
-			if (parsed == 0 || parsed > 1000000 || parsed % 3 != 0) return false;
-			count = static_cast<UINT>(parsed);
+			if (line.empty() || line[0] == '#') continue;
+			std::istringstream iss(line);
+			std::string tag;
+			if (!(iss >> tag)) continue;
+			if (tag == "v")
+			{
+				float x = 0, y = 0, z = 0;
+				if (iss >> x >> y >> z) positions.emplace_back(x, y, -z);
+			}
+			else if (tag == "vt")
+			{
+				float u = 0, v = 0;
+				if (iss >> u >> v) texcoords.emplace_back(u, 1.0f - v);
+			}
+			else if (tag == "vn")
+			{
+				float x = 0, y = 0, z = 0;
+				if (iss >> x >> y >> z) normals.emplace_back(x, y, -z);
+			}
+			else if (tag == "f")
+			{
+				std::vector<std::string> faceTokens;
+				std::string token;
+				while (iss >> token) faceTokens.push_back(token);
+				if (faceTokens.size() < 3) continue;
+				for (size_t t = 1; t + 1 < faceTokens.size(); ++t)
+				{
+					const std::string tri[3] = { faceTokens[t + 1], faceTokens[t], faceTokens[0] };
+					for (int i = 0; i < 3; ++i)
+					{
+						int vi = 0, ti = 0, ni = 0;
+						const std::string& tok = tri[i];
+						size_t slash1 = tok.find('/');
+						if (slash1 == std::string::npos)
+						{
+							vi = std::stoi(tok);
+						}
+						else
+						{
+							vi = std::stoi(tok.substr(0, slash1));
+							size_t slash2 = tok.find('/', slash1 + 1);
+							if (slash2 == std::string::npos)
+							{
+								std::string tstr = tok.substr(slash1 + 1);
+								if (!tstr.empty()) ti = std::stoi(tstr);
+							}
+							else
+							{
+								std::string tstr = tok.substr(slash1 + 1, slash2 - slash1 - 1);
+								if (!tstr.empty()) ti = std::stoi(tstr);
+								std::string nstr = tok.substr(slash2 + 1);
+								if (!nstr.empty()) ni = std::stoi(nstr);
+							}
+						}
+						SimpleVertex vert = {};
+						if (vi > 0 && vi <= (int)positions.size()) vert.pos = positions[vi - 1];
+						if (ti > 0 && ti <= (int)texcoords.size()) vert.tex = texcoords[ti - 1];
+						if (ni > 0 && ni <= (int)normals.size()) vert.normal = normals[ni - 1];
+						else vert.normal = D3DXVECTOR3(0, 1, 0);
+						outVertices.push_back(vert);
+					}
+				}
+			}
 		}
-		catch (const std::exception&) { return false; }
-		bool foundData = false;
-		while (std::getline(file, header))
+		return !outVertices.empty();
+	}
+
+	// Converted OBJ / raw OBJ reader. A malformed file must fail rather than loop at EOF.
+	bool LoadModel(const char* filename, bool centerBase = false)
+	{
+		std::vector<SimpleVertex> vertices;
+		std::string pathStr(filename ? filename : "");
+		bool isObj = pathStr.size() >= 4 && pathStr.substr(pathStr.size() - 4) == ".obj";
+
+		if (isObj)
 		{
-			if (header == "Data:") { foundData = true; break; }
+			if (!LoadOBJFile(filename, vertices))
+			{
+				std::string alt = pathStr.substr(0, pathStr.size() - 4) + ".txt";
+				std::ifstream altFile(alt);
+				std::string header;
+				if (std::getline(altFile, header) && header.find("Vertex Count:") == 0)
+				{
+					return LoadModel(alt.c_str(), centerBase);
+				}
+				return false;
+			}
 		}
-		if (!foundData) return false;
-		std::vector<SimpleVertex> vertices(count);
+		else
+		{
+			std::ifstream file(filename);
+			std::string header;
+			UINT count = 0;
+			if (!file.is_open() || !std::getline(file, header) || header.find("Vertex Count:") != 0)
+			{
+				if (LoadOBJFile(filename, vertices))
+				{
+					// loaded via OBJ parser
+				}
+				else if (pathStr.size() >= 4 && pathStr.substr(pathStr.size() - 4) == ".txt")
+				{
+					std::string alt = pathStr.substr(0, pathStr.size() - 4) + ".obj";
+					if (!LoadOBJFile(alt.c_str(), vertices)) return false;
+				}
+				else return false;
+			}
+			else
+			{
+				try
+				{
+					const unsigned long parsed = std::stoul(header.substr(13));
+					if (parsed == 0 || parsed > 1000000 || parsed % 3 != 0) return false;
+					count = static_cast<UINT>(parsed);
+				}
+				catch (const std::exception&) { return false; }
+				bool foundData = false;
+				while (std::getline(file, header))
+				{
+					if (header == "Data:") { foundData = true; break; }
+				}
+				if (!foundData) return false;
+				vertices.resize(count);
+				for (UINT i = 0; i < count; ++i)
+				{
+					SimpleVertex& v = vertices[i];
+					if (!(file >> v.pos.x >> v.pos.y >> v.pos.z >> v.tex.x >> v.tex.y
+						>> v.normal.x >> v.normal.y >> v.normal.z)) return false;
+				}
+			}
+		}
+
+		if (vertices.empty()) return false;
+		const UINT count = static_cast<UINT>(vertices.size());
 		float minY = 0.0f, maxY = 0.0f;
 		D3DXVECTOR3 low(0, 0, 0), high(0, 0, 0);
 		for (UINT i = 0; i < count; ++i)
 		{
 			SimpleVertex& v = vertices[i];
-			if (!(file >> v.pos.x >> v.pos.y >> v.pos.z >> v.tex.x >> v.tex.y
-				>> v.normal.x >> v.normal.y >> v.normal.z)) return false;
 			if (!std::isfinite(v.pos.x) || !std::isfinite(v.pos.y) || !std::isfinite(v.pos.z)
 				|| !std::isfinite(v.tex.x) || !std::isfinite(v.tex.y)
 				|| !std::isfinite(v.normal.x) || !std::isfinite(v.normal.y)
-				|| !std::isfinite(v.normal.z) || D3DXVec3LengthSq(&v.normal) < 0.000001f)
+				|| !std::isfinite(v.normal.z))
 				return false;
-			D3DXVec3Normalize(&v.normal, &v.normal);
+			if (D3DXVec3LengthSq(&v.normal) < 0.000001f)
+				v.normal = D3DXVECTOR3(0, 1, 0);
+			else
+				D3DXVec3Normalize(&v.normal, &v.normal);
+
 			if (i == 0) low = high = v.pos;
 			if (v.pos.x < low.x) low.x = v.pos.x;
 			if (v.pos.z < low.z) low.z = v.pos.z;

@@ -74,7 +74,8 @@ private:
 	bool windowFocused=false;
 	bool fastForwardTime;
 	int lastClockMinute;
-	MPrimitives *casa;
+	/*MPrimitives *casa;*/
+	MPrimitives *choza;
 	MPrimitives *mesa;
 	MPrimitives *pocion;
 	MPrimitives *pablito;
@@ -86,7 +87,7 @@ private:
 	MPrimitives *corner_pipe;
 
 	// Individual model scales (main integration).
-	float pablitoScale, casaScale, pocionScale, mesaScale;
+	float pablitoScale, chozaScale, pocionScale, mesaScale;
 	float treeScale, fenceScale, furnaceScale, pipeScale, cornerPipeScale;
 	MPrimitives *BoundingSphere1;
 	MPrimitives *BoundingSphere2;
@@ -94,7 +95,7 @@ private:
 	Camara *camara;
 	Camara *skyCamara;
 	HWND gameWindow;
-	D3DXVECTOR3 playerPosition; // Feet, independent of either camera mode.
+	D3DXVECTOR3 playerPosition; // Feet, independent of either camera modec.
 	float playerYaw;
 	bool cameraPadWasDown;
 	D3DXVECTOR3 cloudPosition; // Center of the vehicle; the rider stands on its top.
@@ -133,7 +134,8 @@ public:
 		terrainSettings.position = D3DXVECTOR3(0, 0, 0);
 		terrainSettings.highPrecisionHeightmap = true;
 		terrainSettings.blendMapPath = L"Texturas/Pablito_Valley_Paths.png";
-		casaScale = mesaScale = pocionScale = 4.0f;
+		mesaScale = pocionScale = 4.0f;
+		chozaScale = 1.0f;
 		pablitoScale = treeScale = fenceScale = furnaceScale = 1.0f;
 		pipeScale = cornerPipeScale = 1.0f;
 		rotPerFrame = 0.0f;
@@ -146,7 +148,7 @@ public:
 		playerYaw = 0.0f;
 		cloudVehicleMesh = NULL;
 		cloudPosition = D3DXVECTOR3(384.0f, 0.0f, 384.0f);
-		cloudSize = D3DXVECTOR3(4.0f, 0.6f, 5.0f);
+		cloudSize = D3DXVECTOR3(1.0f, 1.0f, 1.0f);
 		cloudYaw = 0.0f;
 		cloudHoverHeight = 0.8f; // Clearance below the provisional gray platform.
 		cloudSpeed = 28.0f; // Walking: 8; running: 16 world units per second.
@@ -258,17 +260,18 @@ public:
 
 		if (!terreno->IsTerrainLoaded()) return false;
 		cloudVehicleMesh = new MPrimitives(d3d11Device, d3d11DevCon,
-			1.0f, L"", L"", ShaderDiffuse);
-		if (!cloudVehicleMesh->SetSolidColor(165, 165, 165)) return false;
+			"Models/pinwinube.txt", L"Texturas/pinwinube.png", L"", ShaderDiffuse);
+		if (!cloudVehicleMesh->IsModelLoaded()) return false;
+		cloudSize = cloudVehicleMesh->GetModelSize();
 
 		// Three imported OBJ meshes, converted to the template's text format.
-		casa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/casa_pablo.txt",
-			L"Models/PablitoPinwi/casa.png", L"", ShaderDiffuse);
+		choza = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pinwichoza.txt",
+			L"Texturas/paleta.png", L"", ShaderDiffuse);
 		mesa = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Mesa.txt",
 			L"Models/PablitoPinwi/Mesa.png", L"", ShaderDiffuse);
 		pocion = new MPrimitives(d3d11Device, d3d11DevCon, "Models/PablitoPinwi/Pocion.txt",
 			L"Models/PablitoPinwi/Poci\u00f3n.png", L"", ShaderDiffuse);
-		if (!casa->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
+		if (!choza->IsModelLoaded() || !mesa->IsModelLoaded() || !pocion->IsModelLoaded()) return false;
 
 		// Additional models from origin/main. Recenter their exported origins at the base.
 		pablito = new MPrimitives(d3d11Device, d3d11DevCon, "Models/pablitopinwi_textured.txt",
@@ -644,7 +647,7 @@ public:
 	void DropCarriedObject()
 	{
 		if(!alchemy.Carried())return;
-		const float offset=static_cast<int>(alchemy.Carried()->type)<6?0.45f:0.0f;
+		const float offset=0.0f;
 		for(float angle:{0.0f,0.65f,-0.65f,1.4f,-1.4f,3.14f})
 		{
 			const float distance=ridingCloud?4.0f:2.1f;
@@ -700,8 +703,9 @@ public:
 		const float dx = playerPosition.x - cloudPosition.x;
 		const float dz = playerPosition.z - cloudPosition.z;
 		const float top = cloudPosition.y + cloudSize.y * 0.5f;
-		if (ridingCloud || dx * dx + dz * dz > 4.5f * 4.5f
-			|| fabsf(playerPosition.y - top) > 3.0f) return false;
+		const float maxDist = fmaxf(cloudSize.x, cloudSize.z) * 0.5f + 2.5f;
+		if (ridingCloud || dx * dx + dz * dz > maxDist * maxDist
+			|| fabsf(playerPosition.y - top) > 4.0f) return false;
 		float hit;
 		return !SceneCollision::Raycast(playerPosition + D3DXVECTOR3(0,PlayerHeight()*0.7f,0),
 			cloudPosition + D3DXVECTOR3(0,cloudSize.y*0.5f,0),hit,cloudVehicleMesh->GetCollider());
@@ -753,7 +757,7 @@ public:
 			}
 		cloudPosition.y = floor + cloudHoverHeight + cloudSize.y * 0.5f;
 		D3DXMATRIX scaling, rotation, translation;
-		D3DXMatrixScaling(&scaling, cloudSize.x, cloudSize.y, cloudSize.z);
+		D3DXMatrixScaling(&scaling, 1.0f, 1.0f, 1.0f);
 		D3DXMatrixRotationY(&rotation, cloudYaw);
 		D3DXMatrixTranslation(&translation, cloudPosition.x, cloudPosition.y, cloudPosition.z);
 		cloudVehicleMesh->UpdateScene(scaling * rotation * translation);
@@ -904,7 +908,7 @@ public:
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
 		sun.Release();
-		MPrimitives* models[] = { terreno,casa,mesa,pocion,pablito,animationTool,cloudVehicleMesh,tree,fence,
+		MPrimitives* models[] = { terreno,choza,mesa,pocion,pablito,cloudVehicleMesh,tree,fence,
 			furnace,pipe,corner_pipe,cubo,esfera,toroide,cono,cilindro,billboard,skydomo,BoundingSphere1,BoundingSphere2 };
 		for (MPrimitives* model : models)
 		{
@@ -983,10 +987,10 @@ public:
 		const float houseY = terreno->getTerrainCollision(houseXZ) - 0.15f;
 		const float tableY = terreno->getTerrainCollision(tableXZ);
 		D3DXMATRIX scaling, rotation, translation;
-		D3DXMatrixScaling(&scaling, casaScale, casaScale, casaScale);
+		D3DXMatrixScaling(&scaling, chozaScale, chozaScale, chozaScale);
 		D3DXMatrixRotationY(&rotation, D3DXToRadian(houseYaw));
 		D3DXMatrixTranslation(&translation, houseXZ.x, houseY, houseXZ.y);
-		casa->UpdateScene(scaling * rotation * translation);
+		choza->UpdateScene(scaling * rotation * translation);
 		D3DXMatrixScaling(&scaling, mesaScale, mesaScale, mesaScale);
 		D3DXMatrixTranslation(&translation, tableXZ.x, tableY, tableXZ.y);
 		mesa->UpdateScene(scaling * translation);
@@ -994,9 +998,8 @@ public:
 
 		// The exported mesh faces +X. Rotate it to the player's horizontal heading.
 		D3DXMatrixScaling(&scaling, pablitoScale, pablitoScale, pablitoScale);
-		D3DXMatrixRotationY(&rotation, visualPlayerYaw - D3DX_PI * 0.5f);
-		const D3DXVECTOR3 visualFeet=playerPosition+pablitoAnimator.TransitionOffset();
-		D3DXMatrixTranslation(&translation, visualFeet.x, visualFeet.y, visualFeet.z);
+		D3DXMatrixRotationY(&rotation, playerYaw - D3DX_PI * 0.5f);
+		D3DXMatrixTranslation(&translation, playerPosition.x, playerPosition.y, playerPosition.z);
 		pablito->UpdateScene(scaling * rotation * translation);
 		PlaceModel(tree, 360.0f, 438.0f, treeScale);
 		PlaceModel(fence, 403.0f, 427.0f, fenceScale);
@@ -1009,7 +1012,7 @@ public:
 	{
 		if (ridingCloud && !camara->IsThirdPerson()) camara->TogglePerspective();
 		const float playerHeight = pablito->GetModelHeight() * pablitoScale;
-		const D3DXVECTOR3 eyes = playerPosition+pablitoAnimator.TransitionOffset()+D3DXVECTOR3(0, playerHeight * 0.86f, 0);
+		const D3DXVECTOR3 eyes = playerPosition + D3DXVECTOR3(0, playerHeight * 0.86f, 0);
 		const float followDistance = ridingCloud ? fmaxf(playerHeight * 2.5f, cloudSize.z * 2.0f) : playerHeight * 2.5f;
 		camara->FollowPlayer(eyes, followDistance);
 		if (camara->IsThirdPerson())
@@ -1143,7 +1146,7 @@ public:
 			SwapChain->Present(1, 0);return;
 		}
 		// Real silhouettes, including Pablito when his mesh is hidden in first person.
-		MPrimitives* shadowCasters[] = { terreno, casa, mesa, pablito, cloudVehicleMesh, tree,
+		MPrimitives* shadowCasters[] = { terreno, choza, mesa, pablito, cloudVehicleMesh, tree,
 			fence, furnace, pipe, corner_pipe, cubo, esfera, toroide, cilindro, cono,
 			BoundingSphere1, BoundingSphere2 };
 		sun.BeginShadowPass(d3d11DevCon);
@@ -1169,7 +1172,7 @@ public:
 
 		
 
-		casa->DrawScene(camara);
+		choza->DrawScene(camara);
 		mesa->DrawScene(camara);
 		alchemyScene.Draw(alchemy,camara,sceneEffects);
 		if(animationToolVisible)animationTool->DrawScene(camara);

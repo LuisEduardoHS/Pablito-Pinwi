@@ -14,6 +14,9 @@ class Scene
     std::array<MPrimitives*,6> ingredients{{nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}};
     std::array<const SceneCollision::MeshCollider*,4> stationColliders{{nullptr,nullptr,nullptr,nullptr}};
     std::vector<const SceneCollision::MeshCollider*> deliveryColliders;
+    std::vector<MPrimitives*> deliveryBillboards;
+    std::vector<Position> deliverySignPositions;
+    float billboardAge = 0.0f;
     MPrimitives *bottle=nullptr,*liquid=nullptr,*fire=nullptr;
     int lastColor=-1;
     std::vector<MPrimitives*> owned;
@@ -53,12 +56,12 @@ public:
         auto floor=[&](float x,float z){return terrain->getTerrainCollision(D3DXVECTOR2(x,z));};
         auto* supplyA=Table(375,399,floor(375,399));auto* supplyB=Table(375,407,floor(375,407));
         for(int i=0;i<6;++i)
-        {float z=i<3?399.0f:407.0f;game.layout.sources[i]=Position(374.0f+i%3,floor(375,z)+(i<3?supplyA:supplyB)->GetModelHeight()*4+0.45f,z);}
+        {float z=i<3?399.0f:407.0f;game.layout.sources[i]=Position(374.0f+i%3,floor(375,z)+(i<3?supplyA:supplyB)->GetModelHeight()*4,z);}
         game.layout.bottle=Position(384,floor(384,403)+supplyA->GetModelHeight()*4,403);
         propTarget=10;auto* mortarTable=Table(390,395,floor(390,395));
         auto* mortar=Cylinder(0.65f,0.48f,117,107,139);
         Position mortarPos(390,floor(390,395)+mortarTable->GetModelHeight()*4+0.24f,395);Place(mortar,mortarPos);
-        game.layout.stations[0]=Position(390,mortarPos.y+0.30f,395);stationColliders[0]=mortar->GetCollider();
+        game.layout.stations[0]=Position(390,mortarPos.y+0.05f,395);stationColliders[0]=mortar->GetCollider();
         propTarget=11;auto* cauldron=Cylinder(1.35f,1.7f,58,50,79);Place(cauldron,{401,floor(401,392)+1.25f,392});stationColliders[1]=cauldron->GetCollider();
         auto* rim=Own(new MPrimitives(d,c,16,24,1.30f,0.14f,L"",L"",ShaderDiffuse));if(!rim->SetSolidColor(150,126,182))valid=false;
         Place(rim,{401,floor(401,392)+2.12f,392},{1,1,1},D3DX_PI*0.5f);
@@ -73,19 +76,30 @@ public:
         Place(Cylinder(0.12f,1.3f,162,159,177),{390.9f,top+0.65f,407});
         Place(Cube(162,159,177),{390.3f,top+1.25f,407},{1.3f,0.18f,0.25f});
         game.layout.stations[3]=Position(390,top,407);
-        const unsigned char colors[6][3]={{213,64,72},{72,139,234},{167,101,231},{74,200,222},{92,185,97},{244,199,80}};
+        const char* ingredientModelPaths[6] = {
+            "Models/ingredientes/hongorojo.obj",
+            "Models/ingredientes/florazul.obj",
+            "Models/ingredientes/cristal.obj",
+            "Models/ingredientes/agua.obj",
+            "Models/ingredientes/hierba.obj",
+            "Models/ingredientes/raiz.obj"
+        };
         for(int i=0;i<6;++i)
         {
-            MPrimitives* mesh;
-            if(i==2)mesh=Own(new MPrimitives(d,c,12,0.0f,0.32f,0.95f,L"",L"",ShaderDiffuse));
-            else if(i==4)mesh=Cube(colors[i][0],colors[i][1],colors[i][2]);
-            else if(i==5)mesh=Cylinder(0.16f,0.85f,colors[i][0],colors[i][1],colors[i][2]);
-            else mesh=Own(new MPrimitives(d,c,12,16,0.37f,L"",L"",ShaderDiffuse));
-            if(!mesh->SetSolidColor(colors[i][0],colors[i][1],colors[i][2])) valid=false;
-            mesh->SetCollisionEnabled(false);ingredients[i]=mesh;
+            auto* mesh=Own(new MPrimitives(d,c,ingredientModelPaths[i],L"Texturas/paleta.png",L"",ShaderDiffuse,true));
+            if(!mesh->IsModelLoaded()) valid=false;
+            mesh->SetCollisionEnabled(false);
+            ingredients[i]=mesh;
         }
         const unsigned char signColors[3][3]={{238,184,68},{75,153,238},{84,190,118}};
+        const wchar_t* houseSignTextures[3] = {
+            L"Texturas/CartelesCasas/vecina.jpeg",
+            L"Texturas/CartelesCasas/mensajero.jpeg",
+            L"Texturas/CartelesCasas/guardabosques.jpeg"
+        };
         deliveryColliders.resize(game.layout.deliveries.size(),nullptr);
+        deliveryBillboards.resize(game.layout.deliveries.size(),nullptr);
+        deliverySignPositions.resize(game.layout.deliveries.size());
         for(size_t i=0;i<game.layout.deliveries.size();++i)
         {
             propTarget=20+static_cast<int>(i);
@@ -93,6 +107,11 @@ public:
             auto* pole=Cylinder(0.15f,2.8f,116,88,62);Place(pole,{p.x,p.y+1.4f,p.z});deliveryColliders[i]=pole->GetCollider();
             Place(Cube(signColors[i%3][0],signColors[i%3][1],signColors[i%3][2]),{p.x,p.y+2.55f,p.z},{1.5f,0.8f,0.25f});
             game.layout.deliveries[i]=Position(p.x,p.y+1.5f,p.z);
+            deliverySignPositions[i]=p;
+
+            auto* bb=Own(new MPrimitives(d,c,2.0f,1.6f,houseSignTextures[i%3]));
+            bb->SetCollisionEnabled(false);
+            deliveryBillboards[i]=bb;
         }
         game.Restart();return valid;
     }
@@ -130,6 +149,17 @@ public:
             const int target=item.station>=0?10+item.station:1000+item.id;
             effects.Draw(ItemMesh(item),camera,target,item.correct?SceneEffects::PotionColor(item.recipe):D3DXVECTOR3(1,.22f,.42f),potion?1.1f:0,item.id*.63f);
         }
+        billboardAge += 0.016f;
+        for(size_t i=0;i<deliveryBillboards.size();++i)
+        {
+            if(!deliveryBillboards[i]) continue;
+            const Position p = deliverySignPositions[i];
+            const float floatHeight = p.y + 4.2f + 0.12f * sinf(billboardAge * 2.5f + static_cast<float>(i) * 2.0f);
+            D3DXMATRIX w;
+            D3DXMatrixTranslation(&w, p.x, floatHeight, p.z);
+            deliveryBillboards[i]->UpdateScene(w);
+            effects.Draw(deliveryBillboards[i], camera, 20 + static_cast<int>(i));
+        }
     }
     void DrawShadow(const Game& game,const D3DXMATRIX& viewProjection)
     {
@@ -139,7 +169,8 @@ public:
     void Release()
     {
         for(auto* mesh:owned) {mesh->ReleaseModelResources();delete mesh;}
-        owned.clear();props.clear();propTarget=-1;ingredients.fill(nullptr);stationColliders.fill(nullptr);deliveryColliders.clear();bottle=liquid=fire=nullptr;
+        owned.clear();props.clear();propTarget=-1;ingredients.fill(nullptr);stationColliders.fill(nullptr);deliveryColliders.clear();
+        deliveryBillboards.clear();deliverySignPositions.clear();billboardAge=0.0f;bottle=liquid=fire=nullptr;
     }
 };
 }
