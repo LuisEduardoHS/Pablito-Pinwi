@@ -17,6 +17,7 @@
 #include "Gameplay/AlchemyHud.h"
 #include "Gameplay/GameScreens.h"
 #include "Gameplay/PablitoAnimator.h"
+#include "Gameplay/SecretEmoteCode.h"
 #include "Vegetation.h"
 #include "SceneEffects.h"
 #include "WaterStream.h"
@@ -60,6 +61,8 @@ private:
 	Alchemy::Hud alchemyHud;
 	GameScreens gameScreens;
 	PablitoAnimator pablitoAnimator;
+	SecretEmoteCode secretEmoteCode;
+	bool emoteCameraActive=false,perspectiveBeforeEmote=true;
 	MPrimitives* animationTool=nullptr;
 	bool animationToolVisible=false;
 	float visualPlayerYaw=0,carryBlendAge=1;
@@ -469,7 +472,26 @@ public:
 	void ToggleCameraPerspective()
 	{
 		if (!IsMenuVisible() && camara && !ridingCloud)
+		{
+			pablitoAnimator.Cancel(PablitoAnimator::Motion::SixSeven);emoteCameraActive=false;
 			camara->TogglePerspective();
+		}
+	}
+	void ResetSecretInput(){secretEmoteCode.Reset();}
+	void RestoreEmoteCamera()
+	{
+		if(!emoteCameraActive)return;
+		if(camara && !ridingCloud && camara->IsThirdPerson()!=perspectiveBeforeEmote)camara->TogglePerspective();
+		emoteCameraActive=false;
+	}
+	void HandleSecretKey(WPARAM key,bool repeat)
+	{
+		if(!sceneReady || IsMenuVisible()){secretEmoteCode.Reset();return;}
+		if(!secretEmoteCode.Press(static_cast<unsigned>(key),repeat))return;
+		if(ridingCloud || !playerGrounded)return;
+		if(!emoteCameraActive){perspectiveBeforeEmote=camara->IsThirdPerson();emoteCameraActive=true;}
+		if(!camara->IsThirdPerson())camara->TogglePerspective();
+		pablitoAnimator.Play(PablitoAnimator::Motion::SixSeven);
 	}
 
 	void RequestCloudInteraction()
@@ -509,6 +531,7 @@ public:
 	void CancelMenuClick(){gameScreens.CancelClick();}
 	void BeginGameplay(bool restart)
 	{
+		RestoreEmoteCamera();secretEmoteCode.Reset();
 		if(restart)
 		{
 			alchemy.Restart();dayNight=DayNightCycle();ridingCloud=false;perspectiveBeforeCloud=true;
@@ -528,6 +551,7 @@ public:
 	}
 	void UpdateMenu()
 	{
+		secretEmoteCode.Reset();pablitoAnimator.Cancel(PablitoAnimator::Motion::SixSeven);RestoreEmoteCamera();
 		gameScreens.SetScreen(CurrentScreen());
 		if(gameplayInputActive){DIMouse->Unacquire();DIKeyboard->Unacquire();gameplayInputActive=false;}
 		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;
@@ -558,6 +582,7 @@ public:
 		const float seconds=windowFocused?frameSeconds:0;
 		visualPlayerYaw+=WrappedAngle(playerYaw-visualPlayerYaw)*(1-expf(-seconds*14));carryBlendAge+=seconds;
 		pablitoAnimator.Update(seconds,input);
+		if(!pablitoAnimator.IsPlaying(PablitoAnimator::Motion::SixSeven))RestoreEmoteCamera();
 		pablito->ApplyRigidPose(PablitoRigData::TriangleBones,PablitoRigData::VertexCount,pablitoAnimator.Matrices(),PablitoRigData::BoneCount);
 	}
 	void AnimateInteraction(const Alchemy::Game& before,const Alchemy::Target& target)
@@ -685,6 +710,7 @@ public:
 	void ToggleCloudVehicle()
 	{
 		if (!camara) return;
+		pablitoAnimator.Cancel(PablitoAnimator::Motion::SixSeven);RestoreEmoteCamera();
 		const D3DXVECTOR3 previousVisualFeet=playerPosition+pablitoAnimator.TransitionOffset();
 		if (ridingCloud)
 		{

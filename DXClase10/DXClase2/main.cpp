@@ -188,6 +188,7 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 			return 0;
 		}
 		// Bit 30 marks auto-repeat: one camera change per physical C press.
+		if(dxrender)dxrender->HandleSecretKey(wParam,(lParam & (1L<<30))!=0);
 		if (wParam == 'C' && (lParam & (1L << 30)) == 0)
 			dxrender->ToggleCameraPerspective();
 		if (wParam == 'E' && (lParam & (1L << 30)) == 0)
@@ -218,6 +219,7 @@ LRESULT CALLBACK WndProc(HWND hwnd,
 		break;
 	case WM_CAPTURECHANGED:
 	case WM_KILLFOCUS:
+		if(dxrender)dxrender->ResetSecretInput();
 		if(dxrender)dxrender->CancelMenuClick();
 		break;
 	case WM_SETCURSOR:

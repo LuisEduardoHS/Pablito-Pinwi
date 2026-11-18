@@ -11,7 +11,7 @@ class PablitoAnimator
 {
 public:
     enum class Motion { Idle,Walk,Run,Carry,Jump,Fall,Land,Mount,Ride,Dismount,
-        Pickup,Place,Drop,Grind,Stir,Heat,Bottle,Deliver,Read,Nope,Victory,Defeat };
+        Pickup,Place,Drop,Grind,Stir,Heat,Bottle,Deliver,Read,Nope,Victory,Defeat,SixSeven };
     struct Input
     {
         float speed=0,verticalSpeed=0,lookYaw=0,lookPitch=0,steering=0;
@@ -98,6 +98,18 @@ private:
         else if(motion==Motion::Land){p.scaleY=.88f;p.bodyOffset.y=-.08f;p.leftWing.x=-.7f;p.rightWing.x=.7f;}
         else if(motion==Motion::Read){Carry(p);p.head.z=-.32f;p.body.z=-.06f;}
         else if(motion==Motion::Nope){p.head.y+=.28f*sinf(time*17);p.mouth=.05f;}
+        else if(motion==Motion::SixSeven)
+        {
+            // Opposed, upward-facing flippers like weighing two options.
+            // Keep their tips outside his large head and feet on the ground.
+            const float beat=sinf(eventAge*D3DX_PI*2*1.25f);
+            p.body={.045f*beat,0,-.025f};p.head={-.07f*beat,0,.035f*cosf(eventAge*D3DX_PI*5)};
+            p.bodyOffset.y=.025f*(1-cosf(eventAge*D3DX_PI*5));
+            p.leftWing={.28f+.34f*beat,-.60f,-.10f};
+            p.rightWing={-.28f+.34f*beat,.60f,-.10f};
+            p.leftReach={.30f,.10f+.16f*beat,-.45f};p.rightReach={.30f,.10f-.16f*beat,.45f};
+            p.mouth=.07f;
+        }
         return p;
     }
 public:
@@ -108,11 +120,14 @@ public:
     {
         switch(action){case Motion::Mount:return .75f;case Motion::Dismount:return .65f;case Motion::Land:return .24f;
         case Motion::Bottle:return .95f;case Motion::Deliver:return .85f;case Motion::Read:return 1.0f;
+        case Motion::SixSeven:return 5.4f;
         case Motion::Grind:case Motion::Stir:return .85f;case Motion::Heat:return .7f;case Motion::Nope:return .4f;default:return .6f;}
     }
     void Play(Motion action,D3DXVECTOR3 previousFeetOffset=D3DXVECTOR3(0,0,0))
     {event=action;eventAge=0;eventLength=Duration(action);transitionFrom=previousFeetOffset;}
     Motion Current() const{return current;}
+    bool IsPlaying(Motion action) const{return event==action;}
+    void Cancel(Motion action){if(event==action){event=Motion::Idle;transitionFrom={0,0,0};}}
     float Time() const{return time;}
     float Progress() const{return eventLength>0?Clamp(eventAge/eventLength,0,1):1;}
     const D3DXMATRIX* Matrices() const{return matrices;}
@@ -128,6 +143,7 @@ public:
     void Update(float seconds,const Input& input)
     {
         const float dt=std::isfinite(seconds)?Clamp(seconds,0,.1f):0;time+=dt;
+        if(event==Motion::SixSeven && (input.speed>.15f || !input.grounded || input.riding))Cancel(Motion::SixSeven);
         if(event!=Motion::Idle){eventAge+=dt;if(eventAge+0.00001f>=eventLength){event=Motion::Idle;transitionFrom={0,0,0};}}
         if(!wasGrounded && input.grounded && !input.riding && event==Motion::Idle)Play(Motion::Land);
         wasGrounded=input.grounded;
@@ -162,7 +178,11 @@ public:
         if(input.work!=Motion::Idle && input.speed<.5f && input.grounded && !input.riding)
         {current=input.work;target=ActionPose(current,target);}
         if(event!=Motion::Idle)
-        {current=event;target=Blend(target,ActionPose(event,target),sinf(Progress()*D3DX_PI));}
+        {
+            current=event;
+            const float weight=event==Motion::SixSeven?Smooth(eventAge/.25f)*Smooth((eventLength-eventAge)/.40f):sinf(Progress()*D3DX_PI);
+            target=Blend(target,ActionPose(event,target),weight);
+        }
         if(input.victory || input.defeat)
         {
             event=Motion::Idle;transitionFrom={0,0,0};target=Pose();current=input.victory?Motion::Victory:Motion::Defeat;

@@ -114,6 +114,7 @@
     <ClInclude Include="Gameplay\HudImage.h" />
     <ClInclude Include="Gameplay\GameScreens.h" />
     <ClInclude Include="Gameplay\PablitoAnimator.h" />
+    <ClInclude Include="Gameplay\SecretEmoteCode.h" />
     <ClInclude Include="Gameplay\PablitoRigData.h" />
   </ItemGroup>
   <ItemGroup>
@@ -153,6 +154,7 @@
     <None Include="ANIMACIONES.md" />
     <None Include="Tools\rig_pablito.py" />
     <None Include="Tools\check_pablito_animation.cpp" />
+    <None Include="Tools\check_secret_emote.cpp" />
     <None Include="pixelShaderMultitextura.ps" />
     <None Include="materialEffects.ps" />
     <None Include="EFECTOS_SHADERS.md" />

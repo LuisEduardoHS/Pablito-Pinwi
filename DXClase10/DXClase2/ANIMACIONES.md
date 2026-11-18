@@ -23,7 +23,7 @@ necesita Python ni herramientas de animación externas.
 ## Estados y acciones
 
 `Gameplay/PablitoAnimator.h` mezcla los ángulos antes de construir las matrices.
-Incluye 22 estados:
+Incluye 23 estados:
 
 | Estado | Activación y comportamiento |
 | --- | --- |
@@ -42,6 +42,20 @@ Incluye 22 estados:
 | Read | Mirada hacia abajo al abrir la receta con R |
 | Nope | Negación con la cabeza cuando la interacción no cambia el juego |
 | Victory / Defeat | Poses de celebración y tristeza disponibles en el controlador |
+| SixSeven | Emote secreto de aletas alternadas, balanceo y gesto del pico; dura 5.4 s |
+
+Durante la partida, pulsar **6 seis veces y luego 7 siete veces**, sin otra tecla
+entre ellas, activa SixSeven cuando Pablito está en el suelo y fuera de la nube.
+Se admiten las teclas superiores y el teclado numérico. Mantener una tecla no
+cuenta como varias pulsaciones. Una tecla incorrecta, perder el foco, entrar en
+un menú o reiniciar borra la secuencia parcial. El emote no aparece en la UI.
+La cámara pasa temporalmente a tercera persona y luego recupera la perspectiva
+previa; moverse, saltar o interactuar interrumpe el gesto y permite seguir jugando.
+La física, los ingredientes y el reloj de las recetas continúan sin cambios.
+
+`Gameplay/SecretEmoteCode.h` reconoce las pulsaciones; `WM_KEYDOWN` descarta la
+repetición del teclado. `Tools/check_secret_emote.cpp` verifica la secuencia,
+reinicios, teclado numérico, alternancia de aletas, duración e interrupciones.
 
 Las estaciones siguen sus tiempos originales. El movimiento de trabajo se
 mantiene mientras el proceso está activo y Pablito está cerca y quieto. Puede
