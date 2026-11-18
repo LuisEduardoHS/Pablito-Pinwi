@@ -35,9 +35,9 @@ Las posiciones usan una semilla fija: parecen aleatorias y se mantienen entre
 partidas. Hay claros y grupos de distinta densidad, con tamaños, tonos y reflejos
 horizontales variados. Las probabilidades iniciales son 50 % para el pastito
 pequeño, 40 % para el segundo y 10 % para las flores; los arbustos se reducen
-adicionalmente al exigir 10.5 unidades entre ellos. La distribución actual tiene
-11,822 matas pequeñas, 8,164 del segundo tipo y 561 arbustos con flores:
-20,547 elementos en total. Se prueban posiciones cada 3.5 unidades con una
+adicionalmente al exigir 10.5 unidades entre ellos. La distribución tiene unas
+20,400 plantas; el filtro del arroyo deja libre el agua y su margen. La cifra
+varía con las exclusiones del escenario. Se prueban posiciones cada 3.5 unidades con una
 probabilidad variable del 80 al 100 %, conservando variación y agrupaciones.
 
 Cada candidato revisa el centro y ocho puntos de su huella antes de colocarse.

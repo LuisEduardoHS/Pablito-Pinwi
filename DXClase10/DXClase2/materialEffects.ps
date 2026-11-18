@@ -1,0 +1,39 @@
+#include "SunLighting.hlsli"
+
+// Optional material override. Original diffuse/specular/normal shaders stay intact.
+cbuffer MaterialEffects : register(b3)
+{
+    float4 MagicColor;       // RGB emission tint, A strength (zero for plain objects).
+    float4 HighlightColor;   // RGB interaction tint, A distance/availability weight.
+    float4 EffectClock;      // X seconds, Y per-instance phase.
+};
+struct VS_OUTPUT
+{
+    float4 Pos : SV_POSITION;
+    float2 TexCoord : TEXTURE;
+    float3 normal : NORMAL;
+    float3 viewDirection : COORDS;
+    float3 tangent : TANGENT;
+    float3 binormal : BINORMAL;
+    float4 vectPos : POSITION;
+    float maxHeight : HEIGHT;
+    float3 worldPosition : TEXCOORD1;
+};
+Texture2D ObjTexture : register(t0);
+SamplerState ObjSamplerState : register(s0);
+
+float4 PS(VS_OUTPUT input) : SV_Target
+{
+    float4 albedo=ObjTexture.Sample(ObjSamplerState,input.TexCoord);
+    clip(albedo.a-0.9f);
+    float3 normal=normalize(input.normal),view=normalize(input.viewDirection);
+    float rim=pow(1-saturate(abs(dot(normal,view))),2.2f);
+    float pulse=0.5f+0.5f*sin(EffectClock.x*3.14159265f+EffectClock.y);
+    float3 color=SunLitColor(albedo.rgb,normal,input.worldPosition);
+    // Emission survives darkness; the normal material and its shadows remain visible.
+    float band=pow(saturate(1-abs(frac(input.worldPosition.y*.8f-EffectClock.x*.25f)-.5f)*2),10);
+    color+=MagicColor.rgb*MagicColor.a*(.18f+.82f*pulse)*(.35f+.65f*rim+.16f*band);
+    float shimmer=.88f+.12f*sin(EffectClock.x*4.0f);
+    color+=HighlightColor.rgb*HighlightColor.a*(.12f+.88f*rim)*shimmer;
+    return float4(color,albedo.a);
+}

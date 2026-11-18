@@ -1350,7 +1350,7 @@ public:
 		d3d11DevCon->DrawIndexed(numIndex, 0, 0);
 	}
 
-	void DrawScene(Camara *camara)
+	void DrawScene(Camara *camara,ID3D11PixelShader* materialOverride=nullptr)
 	{
 		d3d11DevCon->IASetInputLayout(vertLayout);
 		d3d11DevCon->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -1369,7 +1369,7 @@ public:
 
 		//Set Vertex and Pixel Shaders
 		d3d11DevCon->VSSetShader(VS, 0, 0);
-		d3d11DevCon->PSSetShader(PS, 0, 0);
+		d3d11DevCon->PSSetShader(materialOverride?materialOverride:PS, 0, 0);
 
 		//Set the vertex and the index buffer
 		UINT stride = sizeof(SimpleVertex);

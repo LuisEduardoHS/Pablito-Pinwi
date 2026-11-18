@@ -100,6 +100,8 @@
     <ClInclude Include="TerrainShadows.h" />
     <ClInclude Include="ShaderCompiler.h" />
     <ClInclude Include="SunLight.h" />
+    <ClInclude Include="SceneEffects.h" />
+    <ClInclude Include="WaterStream.h" />
     <ClInclude Include="DayNightCycle.h" />
     <ClInclude Include="Vegetation.h" />
     <ClInclude Include="InteractionPrompt.h" />
@@ -152,6 +154,10 @@
     <None Include="Tools\rig_pablito.py" />
     <None Include="Tools\check_pablito_animation.cpp" />
     <None Include="pixelShaderMultitextura.ps" />
+    <None Include="materialEffects.ps" />
+    <None Include="EFECTOS_SHADERS.md" />
+    <None Include="Tools\check_scene_effects.cpp" />
+    <None Include="waterStream.hlsl" />
     <None Include="vegetation.hlsl" />
     <None Include="Texturas\Vegetacion\pastito-noflores.png" />
     <None Include="Texturas\Vegetacion\pastito-noflores2.png" />

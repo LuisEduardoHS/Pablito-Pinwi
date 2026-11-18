@@ -32,6 +32,8 @@
     <ClInclude Include="ShaderCompiler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SceneEffects.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="WaterStream.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="SunLight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -240,6 +242,10 @@
     </None>
     <None Include="Tools\check_alchemy.cpp"><Filter>Source Files</Filter></None>
     <None Include="JUGABILIDAD.md"><Filter>Resource Files</Filter></None>
+    <None Include="materialEffects.ps"><Filter>Source Files</Filter></None>
+    <None Include="EFECTOS_SHADERS.md"><Filter>Resource Files</Filter></None>
+    <None Include="Tools\check_scene_effects.cpp"><Filter>Source Files</Filter></None>
+    <None Include="waterStream.hlsl"><Filter>Source Files</Filter></None>
     <None Include="Texturas\Ingredientes\hongo-rojo.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Ingredientes\flor-azul.png"><Filter>Resource Files</Filter></None>
     <None Include="Texturas\Ingredientes\cristal-morado.png"><Filter>Resource Files</Filter></None>

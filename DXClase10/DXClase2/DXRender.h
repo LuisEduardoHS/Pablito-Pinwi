@@ -18,6 +18,8 @@
 #include "Gameplay/GameScreens.h"
 #include "Gameplay/PablitoAnimator.h"
 #include "Vegetation.h"
+#include "SceneEffects.h"
+#include "WaterStream.h"
 
 class DXRender
 {
@@ -50,6 +52,8 @@ private:
 	SunLight sun;
 	DayNightCycle dayNight;
 	Vegetation vegetation;
+	SceneEffects sceneEffects;
+	WaterStream waterStream;
 	InteractionPrompt interactionPrompt;
 	Alchemy::Game alchemy;
 	Alchemy::Scene alchemyScene;
@@ -289,6 +293,7 @@ public:
 		BoundingSphere1->SetCollisionEnabled(false);
 		BoundingSphere2->SetCollisionEnabled(false);
 		if (!sun.Init(d3d11Device)) return false;
+		if (!sceneEffects.Init(d3d11Device,d3d11DevCon)) return false;
 		if (!interactionPrompt.Init(d3d11Device, d3d11DevCon, L"Texturas/Tecla-E.png")) return false;
 		if (!alchemyHud.Init(d3d11Device,Width,Height)) return false;
 		if (!gameScreens.Init(d3d11Device,Width,Height)) return false;
@@ -515,6 +520,7 @@ public:
 		}
 		gameStarted=true;gameScreens.SetScreen(GameScreens::Screen::Gameplay);
 		pablitoAnimator.Reset();visualPlayerYaw=playerYaw;carryBlendAge=1;animationToolVisible=false;
+		sceneEffects.Reset();
 		cloudInteractionRequested=dropRequested=recipeRequested=restartRequested=false;
 		requestedMovement=D3DXVECTOR3(0,0,0);fastForwardTime=false;jumpWasDown=true;cameraPadWasDown=true;discardMenuMouse=true;
 		frameSeconds=0;lastFrameTime=std::chrono::steady_clock::now();lastClockMinute=lastCloudHint=-1;
@@ -607,6 +613,7 @@ public:
 			{camara->Forward.x,0,camara->Forward.z},targets);
 		hasInteractionTarget=selected>=0;
 		if(hasInteractionTarget)interactionTarget=targets[selected];
+		sceneEffects.UpdateHighlights(targets,{playerPosition.x,playerPosition.y,playerPosition.z},hasInteractionTarget?interactionTarget.id:-1);
 	}
 
 	void DropCarriedObject()
@@ -866,6 +873,7 @@ public:
 	void ReleaseObjects()
 	{
 		gameScreens.Release();
+		waterStream.Release();sceneEffects.Release();
 		vegetation.Release();
 		alchemyHud.Release();alchemyScene.Release();
 		interactionPrompt.Release();
@@ -912,7 +920,9 @@ public:
 		UpdateCloudVehicle();
 		UpdateImportedModels(); // Register final object transforms before the first input.
 		if(!alchemyScene.Init(d3d11Device,d3d11DevCon,terreno,pocion,furnace,alchemy))return false;
-		if(!vegetation.Init(d3d11Device,d3d11DevCon,*terreno,terrainSettings))return false;
+		if(!waterStream.Init(d3d11Device,d3d11DevCon,*terreno))return false;
+		if(!vegetation.Init(d3d11Device,d3d11DevCon,*terreno,terrainSettings,
+			[this](float x,float z,float radius){return waterStream.Contains(x,z,radius);} ))return false;
 		D3DXVECTOR3 Position = playerPosition;
 		D3DXVECTOR3 Target = Position + D3DXVECTOR3(0.0f, 0.0f, 1.0f);
 		D3DXVECTOR3 Up = D3DXVECTOR3(0.0f, 1.0f, 0.0f);
@@ -1021,7 +1031,7 @@ public:
 			{BeginGameplay(gameStarted);elapsedSeconds=0;}
 		}
 		if(IsMenuVisible()){UpdateMenu();return;}
-		if(windowFocused)alchemy.Tick(static_cast<float>(elapsedSeconds));
+		if(windowFocused){alchemy.Tick(static_cast<float>(elapsedSeconds));sceneEffects.Advance(static_cast<float>(elapsedSeconds));}
 		if(IsMenuVisible()){UpdateMenu();return;}
 		UpdateImportedModels();
 		DetectInput();
@@ -1135,15 +1145,15 @@ public:
 
 		casa->DrawScene(camara);
 		mesa->DrawScene(camara);
-		alchemyScene.Draw(alchemy,camara);
+		alchemyScene.Draw(alchemy,camara,sceneEffects);
 		if(animationToolVisible)animationTool->DrawScene(camara);
-		cloudVehicleMesh->DrawScene(camara);
+		sceneEffects.Draw(cloudVehicleMesh,camara,-10);
 		// Keep his world transform and shadow in first person, but hide the mesh.
 		if (camara->IsThirdPerson())
 			pablito->DrawScene(camara);
 		tree->DrawScene(camara);
 		fence->DrawScene(camara);
-		furnace->DrawScene(camara);
+		sceneEffects.Draw(furnace,camara,12);
 		pipe->DrawScene(camara);
 		corner_pipe->DrawScene(camara);
 
@@ -1153,6 +1163,7 @@ public:
 		BoundingSphere1->DrawScene(camara);
 		BoundingSphere2->DrawScene(camara);
 		vegetation.Draw(d3d11DevCon,*camara);
+		waterStream.Draw(d3d11DevCon,*camara,light,sceneEffects.Time());
 		// Future interactables can use this same renderer with their own anchor/range.
 		if(hasInteractionTarget)
 			interactionPrompt.Draw(*camara,D3DXVECTOR3(interactionTarget.position.x,interactionTarget.position.y+0.5f,interactionTarget.position.z),true,42.0f);

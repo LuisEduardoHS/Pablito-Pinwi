@@ -5,6 +5,7 @@
 #include "Camara.h"
 #include <cstdint>
 #include <cstring>
+#include <functional>
 
 // Reproducible meadow billboards. No physics colliders or per-plant draws.
 class Vegetation
@@ -69,7 +70,7 @@ private:
             return (value(ix,iy)*(1-fx)+value(ix+1,iy)*fx)*(1-fy)+(value(ix,iy+1)*(1-fx)+value(ix+1,iy+1)*fx)*fy;
         }
     };
-    bool Scatter(MPrimitives& terrain,const TerrainSettings& settings,const Mask& mask)
+    bool Scatter(MPrimitives& terrain,const TerrainSettings& settings,const Mask& mask,const std::function<bool(float,float,float)>& excluded)
     {
         const float width=settings.width*settings.horizontalScale,depth=settings.depth*settings.horizontalScale;
         const D3DXMATRIX world=terrain.getWorldMatrix();
@@ -93,6 +94,7 @@ private:
             const float choice=random.Next();const unsigned type=choice<0.50f?0:choice<0.90f?1:2;
             const float size=type==0?2.1f+random.Next()*1.2f:type==1?2.4f+random.Next()*1.5f:3.6f+random.Next()*1.4f;
             const float radius=size*0.55f;D3DXVECTOR3 position,normal;
+            if(excluded && excluded(px,pz,radius))continue;
             if(!grass(px,pz,position,normal))continue;
             bool clear=true;
             for(const auto& b:obstacles)
@@ -127,9 +129,9 @@ private:
         return !sites.empty();
     }
 public:
-    bool Init(ID3D11Device* device,ID3D11DeviceContext* context,MPrimitives& terrain,const TerrainSettings& settings)
+    bool Init(ID3D11Device* device,ID3D11DeviceContext* context,MPrimitives& terrain,const TerrainSettings& settings,const std::function<bool(float,float,float)>& excluded={})
     {
-        Release();Mask mask;if(!mask.Load(device,context,settings.blendMapPath) || !Scatter(terrain,settings,mask))return false;
+        Release();Mask mask;if(!mask.Load(device,context,settings.blendMapPath) || !Scatter(terrain,settings,mask,excluded))return false;
         const wchar_t* files[]={L"Texturas/Vegetacion/pastito-noflores.png",L"Texturas/Vegetacion/pastito-noflores2.png",L"Texturas/Vegetacion/arbusto-flores.png"};
         for(unsigned i=0;i<3;++i)if(FAILED(D3DX11CreateShaderResourceViewFromFile(device,files[i],nullptr,nullptr,&textures[i],nullptr))){Release();return false;}
         ID3DBlob* vsCode=nullptr;ID3DBlob* psCode=nullptr;

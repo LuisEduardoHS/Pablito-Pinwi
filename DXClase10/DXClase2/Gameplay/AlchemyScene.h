@@ -2,12 +2,14 @@
 #define GC_ALCHEMY_SCENE_H
 #include "AlchemyGame.h"
 #include "../MeshPrimitives.h"
+#include "../SceneEffects.h"
 
 namespace Alchemy
 {
 class Scene
 {
-    struct Prop {MPrimitives* mesh;D3DXMATRIX world;};
+    struct Prop {MPrimitives* mesh;D3DXMATRIX world;int target;};
+    int propTarget=-1;
     std::vector<Prop> props;
     std::array<MPrimitives*,6> ingredients{{nullptr,nullptr,nullptr,nullptr,nullptr,nullptr}};
     std::array<const SceneCollision::MeshCollider*,4> stationColliders{{nullptr,nullptr,nullptr,nullptr}};
@@ -27,7 +29,7 @@ class Scene
         D3DXMatrixTranslation(&t,p.x,p.y,p.z);return s*r*t;
     }
     void Place(MPrimitives* mesh,Position p,Position scale=Position(1,1,1),float pitch=0)
-    {D3DXMATRIX world=Matrix(p,scale,0,pitch);mesh->UpdateScene(world);props.push_back({mesh,world});}
+    {D3DXMATRIX world=Matrix(p,scale,0,pitch);mesh->UpdateScene(world);props.push_back({mesh,world,propTarget});}
     MPrimitives* Table(float x,float z,float floor)
     {
         auto* mesh=Own(new MPrimitives(device,context,"Models/PablitoPinwi/Mesa.txt",L"Models/PablitoPinwi/Mesa.png",L"",ShaderDiffuse));
@@ -53,20 +55,20 @@ public:
         for(int i=0;i<6;++i)
         {float z=i<3?399.0f:407.0f;game.layout.sources[i]=Position(374.0f+i%3,floor(375,z)+(i<3?supplyA:supplyB)->GetModelHeight()*4+0.45f,z);}
         game.layout.bottle=Position(384,floor(384,403)+supplyA->GetModelHeight()*4,403);
-        auto* mortarTable=Table(390,395,floor(390,395));
+        propTarget=10;auto* mortarTable=Table(390,395,floor(390,395));
         auto* mortar=Cylinder(0.65f,0.48f,117,107,139);
         Position mortarPos(390,floor(390,395)+mortarTable->GetModelHeight()*4+0.24f,395);Place(mortar,mortarPos);
         game.layout.stations[0]=Position(390,mortarPos.y+0.30f,395);stationColliders[0]=mortar->GetCollider();
-        auto* cauldron=Cylinder(1.35f,1.7f,58,50,79);Place(cauldron,{401,floor(401,392)+1.25f,392});stationColliders[1]=cauldron->GetCollider();
+        propTarget=11;auto* cauldron=Cylinder(1.35f,1.7f,58,50,79);Place(cauldron,{401,floor(401,392)+1.25f,392});stationColliders[1]=cauldron->GetCollider();
         auto* rim=Own(new MPrimitives(d,c,16,24,1.30f,0.14f,L"",L"",ShaderDiffuse));if(!rim->SetSolidColor(150,126,182))valid=false;
         Place(rim,{401,floor(401,392)+2.12f,392},{1,1,1},D3DX_PI*0.5f);
         for(float x:{-0.8f,0.8f}) Place(Cube(58,50,79),{401+x,floor(401,392)+0.30f,392},{0.35f,0.6f,0.7f});
         liquid=Cylinder(1.15f,0.08f,78,67,114);liquid->SetCollisionEnabled(false);Place(liquid,{401,floor(401,392)+2.10f,392});
         game.layout.stations[1]=Position(401,floor(401,392)+2.3f,392);
         game.layout.stations[2]=Position(394,floor(394,412)+1.5f,412);stationColliders[2]=existingFurnace->GetCollider();
-        fire=Own(new MPrimitives(d,c,12,16,0.38f,L"",L"",ShaderDiffuse));if(!fire->SetSolidColor(255,149,51))valid=false;
+        propTarget=12;fire=Own(new MPrimitives(d,c,12,16,0.38f,L"",L"",ShaderDiffuse));if(!fire->SetSolidColor(255,149,51))valid=false;
         fire->SetCollisionEnabled(false);Place(fire,{394,floor(394,412)+0.8f,412});
-        auto* bottlerTable=Table(390,407,floor(390,407));stationColliders[3]=bottlerTable->GetCollider();
+        propTarget=13;auto* bottlerTable=Table(390,407,floor(390,407));stationColliders[3]=bottlerTable->GetCollider();
         const float top=floor(390,407)+bottlerTable->GetModelHeight()*4;
         Place(Cylinder(0.12f,1.3f,162,159,177),{390.9f,top+0.65f,407});
         Place(Cube(162,159,177),{390.3f,top+1.25f,407},{1.3f,0.18f,0.25f});
@@ -86,6 +88,7 @@ public:
         deliveryColliders.resize(game.layout.deliveries.size(),nullptr);
         for(size_t i=0;i<game.layout.deliveries.size();++i)
         {
+            propTarget=20+static_cast<int>(i);
             Position p=game.layout.deliveries[i];p.y=floor(p.x,p.z);
             auto* pole=Cylinder(0.15f,2.8f,116,88,62);Place(pole,{p.x,p.y+1.4f,p.z});deliveryColliders[i]=pole->GetCollider();
             Place(Cube(signColors[i%3][0],signColors[i%3][1],signColors[i%3][2]),{p.x,p.y+2.55f,p.z},{1.5f,0.8f,0.25f});
@@ -113,10 +116,20 @@ public:
             lastColor=color;
         }
     }
-    void Draw(const Game& game,Camara* camera)
+    void Draw(const Game& game,Camara* camera,SceneEffects& effects)
     {
-        for(const Prop& prop:props) {if(prop.mesh==fire && !game.heating)continue;prop.mesh->UpdateScene(prop.world);prop.mesh->DrawScene(camera);}
-        for(const Item& item:game.items) if(item.state!=ItemState::Consumed) {PoseItem(item);ItemMesh(item)->DrawScene(camera);}
+        for(const Prop& prop:props)
+        {
+            if(prop.mesh==fire && !game.heating)continue;prop.mesh->UpdateScene(prop.world);
+            const bool magical=prop.mesh==liquid && (game.batchState==BatchState::Mixed || game.batchState==BatchState::Heated);
+            effects.Draw(prop.mesh,camera,prop.mesh==fire?-1:prop.target,SceneEffects::PotionColor(game.CurrentRecipe().id),magical?.65f:0);
+        }
+        for(const Item& item:game.items)if(item.state!=ItemState::Consumed)
+        {
+            PoseItem(item);const bool potion=item.type==Ingredient::Potion;
+            const int target=item.station>=0?10+item.station:1000+item.id;
+            effects.Draw(ItemMesh(item),camera,target,item.correct?SceneEffects::PotionColor(item.recipe):D3DXVECTOR3(1,.22f,.42f),potion?1.1f:0,item.id*.63f);
+        }
     }
     void DrawShadow(const Game& game,const D3DXMATRIX& viewProjection)
     {
@@ -126,7 +139,7 @@ public:
     void Release()
     {
         for(auto* mesh:owned) {mesh->ReleaseModelResources();delete mesh;}
-        owned.clear();props.clear();ingredients.fill(nullptr);stationColliders.fill(nullptr);deliveryColliders.clear();bottle=liquid=fire=nullptr;
+        owned.clear();props.clear();propTarget=-1;ingredients.fill(nullptr);stationColliders.fill(nullptr);deliveryColliders.clear();bottle=liquid=fire=nullptr;
     }
 };
 }
